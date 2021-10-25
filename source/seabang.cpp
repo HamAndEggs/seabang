@@ -26,14 +26,12 @@
 #include <vector>
 #include <memory>
 
+#include "misc.h"
+#include "shell.h"
+
 typedef struct stat FileStats;
 
-#ifdef DEBUG_BUILD
-    const int LOGGING_MODE = LOG_VERBOSE;
-#else
-    const int LOGGING_MODE = LOG_ERROR;
-#endif
-
+static bool gVerboseLogging = false;
 
 /**
  * @brief Checks if the file for source is newer than of dest.
@@ -47,7 +45,7 @@ typedef struct stat FileStats;
  */
 static bool CompareFileTimes(const std::string& pSourceFile,const std::string& pDestFile)
 {
-    if( LOGGING_MODE == LOG_VERBOSE )
+    if( gVerboseLogging )
     {
         std::cout << "CompareFileTimes(" << pSourceFile << "," << pDestFile << ")" << std::endl;
     }
@@ -71,8 +69,13 @@ static bool CompareFileTimes(const std::string& pSourceFile,const std::string& p
     return true;
 }
 
-int BuildFromShebang(int argc,char *argv[])
+int main(int argc,char *argv[])
 {
+    for(int n = 0 ; n < argc ; n++ )
+    {
+        std::clog << argv[n] << "\n";
+    }
+
     if( argv[2] == NULL )
         return EXIT_FAILURE;
 
@@ -151,7 +154,7 @@ int BuildFromShebang(int argc,char *argv[])
         {
             while( std::getline(oldSource,line) )
             {
-                if( LOGGING_MODE == LOG_VERBOSE )
+                if( gVerboseLogging )
                 {
                     std::cout << line << std::endl;
                 }
@@ -165,7 +168,7 @@ int BuildFromShebang(int argc,char *argv[])
                     // First entry will be the #APPBUILD_LIBS, so skip that bit.
                     const std::string libs = line.substr(15);
 
-                    if( LOGGING_MODE == LOG_VERBOSE )
+                    if( gVerboseLogging )
                     {
                         std::cout << "APPBUILD_LIBS entry found, libs are " << libs;
                     }
@@ -196,7 +199,7 @@ int BuildFromShebang(int argc,char *argv[])
             return EXIT_FAILURE;
         }
     }
-    else if( LOGGING_MODE == LOG_VERBOSE )
+    else if( gVerboseLogging )
     {
         std::cout << "Skipping rebuild, executable is not out of date." << std::endl;
     }
