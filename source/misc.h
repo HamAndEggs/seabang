@@ -28,6 +28,7 @@
 #include <map>
 #include <set>
 #include <stack>
+#include <algorithm>
 
 typedef std::vector<std::string> StringVec;
 typedef std::map<std::string,std::string> StringMap;
@@ -47,7 +48,10 @@ inline StringVec GetKeys(const StringMap& pMap)
    return keys;
 }
 
-
+inline bool Search(const StringVec& pVec,const std::string& pLost)
+{
+   return std::find(pVec.begin(),pVec.end(),pLost) != pVec.end();
+}
 
 bool FileExists(const char* pFilename);	//Will return false if file name is a path! We want to know if the file exists!
 bool DirectoryExists(const char* pDirname);	//Will return false if name name is a file! We want to know if the dir exists!
@@ -159,5 +163,4 @@ std::string GetTimeDifference(const std::chrono::system_clock::time_point& pStar
 //////////////////////////////////////////////////////////////////////////
 bool DoMiscUnitTests();
 
-//////////////////////////////////////////////////////////////////////////
-};//namespace appbuild
+#endif

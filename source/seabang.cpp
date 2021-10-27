@@ -69,22 +69,117 @@ static bool CompareFileTimes(const std::string& pSourceFile,const std::string& p
     return true;
 }
 
-int main(int argc,char *argv[])
+static const char* GetSourceFileFromArguments(int argc,char *argv[])
 {
-    for(int n = 0 ; n < argc ; n++ )
+    if( argc == 2 )
+        return argv[1];
+
+    // If it's a file, assume seabang not passed with any argument.
+    if( FileExists(argv[1]) )
+        return argv[1];
+
+    // Assume if argv[1] is not a file then they must be arguments and so argv[2] is our file.
+    return argv[2];
+}
+
+static const StringVec GetArgumentsForSeabang(int argc,char *argv[])
+{
+    // If not arguments then pass back empty vector
+    if( argc > 2 )
     {
-        std::clog << argv[n] << "\n";
+        // If it's a file, assume seabang not passed with any argument.
+        if( FileExists(argv[1]) == false )
+        {
+            // Assume if argv[1] is not a file then they must be arguments and so argv[2] is our file.
+            return SplitString(argv[1]," ");
+        }
     }
 
-    if( argv[2] == NULL )
+    return StringVec();
+}
+
+static const StringVec GetArgumentsForApplication(int argc,char *argv[])
+{
+    StringVec args;
+    // If not arguments then pass back empty vector
+    if( argc > 2 )
+    {
+        // If it's a file, assume seabang not passed with any argument.
+        if( FileExists(argv[1]) )
+        {// Application arguments are as expected, one after another in the argument list, not one string.
+            for(int n = 2 ; n < argc ; n++ )
+            {
+                args.push_back(argv[n]);
+            }
+        }
+        else
+        {
+            // argv[1] was not a file, assume argv[2] is oyr file. So use argv[3] and one wards, if give.
+            if( argc > 3 )
+            {
+                for(int n = 3 ; n < argc ; n++ )
+                {
+                    args.push_back(argv[n]);
+                }
+            }
+        }
+
+    }
+
+    return args;
+}
+
+static void LogArguments(const StringVec& pArgs,const std::string& pWho)
+{
+    if( pArgs.size() == 0 )
+    {
+        std::clog << "No arguments for " << pWho << "\n";
+    }
+    else
+    {
+        std::clog << "arguments for " << pWho << " are:\n";
+        for( auto a : pArgs )
+        {
+            std::clog << "    " << a << "\n";
+        }
+    }
+}
+
+int main(int argc,char *argv[])
+{
+    // Got to be at least two args.
+    if( argc < 2 )
+    {
+        std::cerr << "seabang not run from a source file, expects at least two command line arguments.\n";
         return EXIT_FAILURE;
+    }
+
+    // The way the commandline works with a shebang is...
+    // argv[0] is the shebang exec name, so in our case will be seabang
+    // then comes the arguments passed to the seabang, in the source file, all as one argument, [1]
+    // If no arguments given then argv[1] will be the source file.
+    // If arguments were given then the source file will be in argv[2]
+    // Then the rest of the arguments are as we expect, one argv[n] per argument.
+    // And so we need to look if argv[1] is a file or not. If it is assume no args passed to the shebang, if it is not assume it's args for the seabang exec.
+    const std::string originalSourceFile = GetSourceFileFromArguments(argc,argv);
+    const StringVec seaBangExtraArguments = GetArgumentsForSeabang(argc,argv);
+    const StringVec applicationExtraArguments = GetArgumentsForApplication(argc,argv);
+
+    // Lets see if they want verbose logging.
+    gVerboseLogging = Search(seaBangExtraArguments,"-v");
+    const bool releaseBuild = true; // Add option for this.
+
+    if( gVerboseLogging )
+    {
+        std::clog << "originalSourceFile == " << originalSourceFile << "\n";
+        LogArguments(seaBangExtraArguments,"seabang");
+        LogArguments(applicationExtraArguments,"application");
+    }
 
     const size_t ARG_MAX = 4096;
 
     const std::string CWD = GetCurrentWorkingDirectory() + "/";
-    // Get the source file name, if not return an error.
-    // Should be in argv[2]
-    const std::string sourcePathedFile = CleanPath(CWD + argv[2]);
+    const std::string sourcePathedFile = CleanPath(CWD + originalSourceFile);
 
     // Sanity check, is file there?
     if( FileExists(sourcePathedFile) == false )
@@ -94,7 +189,7 @@ int main(int argc,char *argv[])
     const std::string sourceFilePath = GetPath(sourcePathedFile);
 
     // This is the temp folder path we use to cache build results.
-    const std::string tempFolderPath("/tmp/appbuild/");
+    const std::string tempFolderPath("/tmp/seabang/");
 
     // Use the source file as the 'project name' for error reports.
     // This is the name of the project that the user will expect to see in errors.
@@ -105,15 +200,10 @@ int main(int argc,char *argv[])
     // To ensure no clashes I take the fully pathed source file name
     // and add /tmp to the start for the temp folder. I also add .exe at the end.
     const std::string exename = GetFileName(sourcePathedFile) + ".exe";
-    const std::string pathedExeName = CleanPath(tempFolderPath + sourceFilePath + "/bin/" + exename);
+    const std::string pathedExeName = CleanPath(tempFolderPath + sourceFilePath + exename);
 
     // We need the source file without the shebang too.
     const std::string tempSourcefile = CleanPath(tempFolderPath + sourcePathedFile);
-
-    // Also create the project file that will be used to build the exe if needs be.
-    // We don't really make this file but the objects involved need to think they were loaded from a file. Maybe that is an error in the design.
-    const std::string fakeProjectFilename = tempSourcefile + ".proj";
-
 
     // The temp folder that it's all done in.
     const std::string projectTempFolder = GetPath(tempSourcefile);
@@ -147,11 +237,11 @@ int main(int argc,char *argv[])
         // Copy all lines of the file over excluding the first line that has the shebang.
         std::string line;
         std::ifstream oldSource(sourcePathedFile);
-        bool foundShebang = false;
-
         std::ofstream newSource(tempSourcefile);
         if( newSource )
         {
+            bool foundShebang = false;
+
             while( std::getline(oldSource,line) )
             {
                 if( gVerboseLogging )
@@ -163,39 +253,21 @@ int main(int argc,char *argv[])
                 {
                     foundShebang = true;
                 }
-                else if( CompareNoCase(line.c_str(),"#APPBUILD_LIBS ",15) ) // Is it a pragma to add a libs?
-                {
-                    // First entry will be the #APPBUILD_LIBS, so skip that bit.
-                    const std::string libs = line.substr(15);
-
-                    if( gVerboseLogging )
-                    {
-                        std::cout << "APPBUILD_LIBS entry found, libs are " << libs;
-                    }
-
-                    if( libs.size() > 0 )
-                    {
-                        for (size_t p = 0, q = 0; p != libs.npos; p = q)
-                        {
-                            libraryFiles.push_back(libs.substr(p + (p != 0), (q = libs.find(" ", p + 1)) - p - (p != 0)));
-                        }
-                    }
-                }
                 else
                 {
                     newSource << line << std::endl;
                 }
             }
+
+            if( !foundShebang )
+            {
+                std::cerr << "Failed to parse the source file..." << std::endl;
+                return EXIT_FAILURE;
+            }
         }
         else
         {
             std::cerr << "Failed to parse the source file into new temp file..." << std::endl;
-            return EXIT_FAILURE;
-        }
-
-        if( !foundShebang )
-        {
-            std::cerr << "Failed to parse the source file..." << std::endl;
             return EXIT_FAILURE;
         }
     }
@@ -213,56 +285,42 @@ int main(int argc,char *argv[])
     // No point doing the link stage is the source file has not changed!
     if( rebuildNeeded )
     {
-        SourceFiles SourceFiles(CWD,LOGGING_MODE);
-        SourceFiles.AddFile(GetFileName(sourcePathedFile));
+        // First compile the new source file that is in the temp folder, this has the she bang removed, so it'll compile.
+        StringVec args;
 
-        rapidjson::Document ProjectJson;
-        ProjectJson.SetObject(); // Root object is an object not an array.
-        rapidjson::Document::AllocatorType& alloc = ProjectJson.GetAllocator();
-        ProjectJson.AddMember("source_files",SourceFiles.Write(alloc),alloc);
+        args.push_back(tempSourcefile);
 
-        // Add the minimum release config so we can set the output name.
-        rapidjson::Value configurations = rapidjson::Value(rapidjson::kObjectType);
-            rapidjson::Value release = rapidjson::Value(rapidjson::kObjectType);        
-                release.AddMember("output_name",exename,alloc);
-                release.AddMember("output_path","./bin/",alloc);
-
-                if( libraryFiles.size() > 0 )
-                {
-                    libraryFiles.push_back("m");
-                    libraryFiles.push_back("stdc++");
-                    libraryFiles.push_back("pthread");
-
-                    // We have some extra lib files to add. So add my defaults and the extra ones..
-                    release.AddMember("libs",BuildStringArray(libraryFiles,alloc),alloc);
-                }
-                
-            configurations.AddMember("release",release,alloc);
-        ProjectJson.AddMember("configurations",configurations,alloc);
-
-        // Fill in the defaults.
-        UpdateJsonProjectWithDefaults(ProjectJson);
-
-        // Now we build the project from a valid json object with no missing entries.
-        // By doing it like this makes the Project and Configuration classes a lot cleaner.
-        Project sheBangProject(ProjectJson,usersProjectName,projectTempFolder,1,LOGGING_MODE,false,false);
-        if( sheBangProject == false )
+        // For now, we'll build a release build. Later I'll add an option for a debug or release to be selected in the comand line options to seabang.
+        if( releaseBuild )
         {
-            std::cout << "Failed to create default project, [" << usersProjectName << "]" << std::endl;        
-            return EXIT_FAILURE;
+            args.push_back("-o2");
+            args.push_back("-g0");
+            args.push_back("-DRELEASE_BUILD");
+            args.push_back("-DNDEBUG");
+        }
+        else
+        {
+            args.push_back("-o0");
+            args.push_back("-g2");
+            args.push_back("-DDEBUG_BUILD");
         }
 
-        const std::string configName = sheBangProject.FindDefaultConfigurationName();
-        if( configName.size() == 0 )
-        {
-            std::cerr << "No configuration found in the shebang virtual project, implementation error, please log a bug. \'" << usersProjectName << "\'" << std::endl;
-            return EXIT_FAILURE;
-        }
+        // For now we'll assume c++17, later add option to allow them to define this. Will always default to c++17
+        args.push_back("-std=c++17");
+        args.push_back("-Wall"); // Lots of warnings please.
+        
+        args.push_back("-lm");  // Maths libs
+        args.push_back("-lstdc++");  // C++ stuff
+        args.push_back("-lpthread");  // For threading
 
-        if( sheBangProject.Build(configName) == false )
+        args.push_back("-o");
+        args.push_back(pathedExeName);
+
+        std::string compileOutput;
+        const bool comiledOK = ExecuteShellCommand("g++",args,compileOutput);
+        if( compileOutput.size() > 0 && (comiledOK == false || gVerboseLogging ) )
         {
-            std::cerr << "Build failed for project \'" << usersProjectName << "\'" << std::endl;
-            return EXIT_FAILURE;
+            std::clog << compileOutput << "\n";
         }
     }
 
@@ -277,11 +335,12 @@ int main(int argc,char *argv[])
             return EXIT_FAILURE;
         }
 
-#ifdef DEBUG_BUILD
-std::cout << "Running exec...." << std::endl;
-#endif
+        if( gVerboseLogging )
+        {
+            std::clog << "Running exec: " << pathedExeName << "\n";
+        }
 
-        char** TheArgs = new char*[(argc - 3) + 2];// -3 for the args sent into appbuild shebang, then +1 for the NULL and +1 for the file name as per convention, see https://linux.die.net/man/3/execlp.
+        char** TheArgs = new char*[(argc - 3) + 2];// -3 for the args sent into shebang, then +1 for the NULL and +1 for the file name as per convention, see https://linux.die.net/man/3/execlp.
         int c = 0;
         TheArgs[c++] = CopyString(pathedExeName);
         for( int n = 3 ; n < argc ; n++ )
@@ -297,11 +356,6 @@ std::cout << "Running exec...." << std::endl;
             }
         }
         TheArgs[c++] = NULL;
-
-#ifdef DEBUG_BUILD
-for(int n = 0 ; TheArgs[n] != NULL ; n++ )
-std::cout << "TheArgs[n] " << TheArgs[n] << std::endl;
-#endif
 
         // This replaces the current process so no need to clean up the memory leaks before here. ;)
         execvp(TheArgs[0], TheArgs);
