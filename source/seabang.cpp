@@ -17,7 +17,6 @@
  * 
  */
 
-#include <sys/stat.h>
 #include <limits.h>
 #include <string>
 #include <iostream>
@@ -26,48 +25,11 @@
 #include <vector>
 #include <memory>
 
-#include "misc.h"
-#include "shell.h"
+#include "TinyTools.h"
 
-typedef struct stat FileStats;
 
 static bool gVerboseLogging = false;
 
-/**
- * @brief Checks if the file for source is newer than of dest.
- * Also will pretend that it is newer if any of the stats fail.
- * This is a bespoke to my needs here, should not be exported to rest of the code.
- * 
- * @param pSourceFile 
- * @param pDestFile 
- * @return true 
- * @return false 
- */
-static bool CompareFileTimes(const std::string& pSourceFile,const std::string& pDestFile)
-{
-    if( gVerboseLogging )
-    {
-        std::cout << "CompareFileTimes(" << pSourceFile << "," << pDestFile << ")" << std::endl;
-    }
-
-    FileStats Stats;
-    if( stat(pDestFile.c_str(), &Stats) == 0 && S_ISREG(Stats.st_mode) )
-    {
-        timespec dstFileTime = Stats.st_mtim;
-
-        if( stat(pSourceFile.c_str(), &Stats) == 0 && S_ISREG(Stats.st_mode) )
-        {
-            timespec srcFileTime = Stats.st_mtim;
-
-            if(srcFileTime.tv_sec == dstFileTime.tv_sec)
-                return srcFileTime.tv_nsec > dstFileTime.tv_nsec;
-
-            return srcFileTime.tv_sec > dstFileTime.tv_sec;
-        }
-    }
-
-    return true;
-}
 
 static const char* GetSourceFileFromArguments(int argc,char *argv[])
 {
@@ -75,37 +37,37 @@ static const char* GetSourceFileFromArguments(int argc,char *argv[])
         return argv[1];
 
     // If it's a file, assume seabang not passed with any argument.
-    if( FileExists(argv[1]) )
+    if( tinytools::file::FileExists(argv[1]) )
         return argv[1];
 
     // Assume if argv[1] is not a file then they must be arguments and so argv[2] is our file.
     return argv[2];
 }
 
-static const StringVec GetArgumentsForSeabang(int argc,char *argv[])
+static const tinytools::StringVec GetArgumentsForSeabang(int argc,char *argv[])
 {
     // If not arguments then pass back empty vector
     if( argc > 2 )
     {
         // If it's a file, assume seabang not passed with any argument.
-        if( FileExists(argv[1]) == false )
+        if( tinytools::file::FileExists(argv[1]) == false )
         {
             // Assume if argv[1] is not a file then they must be arguments and so argv[2] is our file.
-            return SplitString(argv[1]," ");
+            return tinytools::string::SplitString(argv[1]," ");
         }
     }
 
-    return StringVec();
+    return tinytools::StringVec();
 }
 
-static const StringVec GetArgumentsForApplication(int argc,char *argv[])
+static const tinytools::StringVec GetArgumentsForApplication(int argc,char *argv[])
 {
-    StringVec args;
+    tinytools::StringVec args;
     // If not arguments then pass back empty vector
     if( argc > 2 )
     {
         // If it's a file, assume seabang not passed with any argument.
-        if( FileExists(argv[1]) )
+        if( tinytools::file::FileExists(argv[1]) )
         {// Application arguments are as expected, one after another in the argument list, not one string.
             for(int n = 2 ; n < argc ; n++ )
             {
@@ -129,7 +91,7 @@ static const StringVec GetArgumentsForApplication(int argc,char *argv[])
     return args;
 }
 
-static void LogArguments(const StringVec& pArgs,const std::string& pWho)
+static void LogArguments(const tinytools::StringVec& pArgs,const std::string& pWho)
 {
     if( pArgs.size() == 0 )
     {
@@ -162,11 +124,11 @@ int main(int argc,char *argv[])
     // Then the rest of the arguments are as we expect, one argv[n] per argument.
     // And so we need to look if argv[1] is a file or not. If it is assume no args passed to the shebang, if it is not assume it's args for the seabang exec.
     const std::string originalSourceFile = GetSourceFileFromArguments(argc,argv);
-    const StringVec seaBangExtraArguments = GetArgumentsForSeabang(argc,argv);
-    const StringVec applicationExtraArguments = GetArgumentsForApplication(argc,argv);
+    const tinytools::StringVec seaBangExtraArguments = GetArgumentsForSeabang(argc,argv);
+    const tinytools::StringVec applicationExtraArguments = GetArgumentsForApplication(argc,argv);
 
     // Lets see if they want verbose logging.
-    gVerboseLogging = Search(seaBangExtraArguments,"-v");
+    gVerboseLogging = tinytools::string::Search(seaBangExtraArguments,"-v");
     const bool releaseBuild = true; // Add option for this.
 
     if( gVerboseLogging )
@@ -178,15 +140,15 @@ int main(int argc,char *argv[])
 
     const size_t ARG_MAX = 4096;
 
-    const std::string CWD = GetCurrentWorkingDirectory() + "/";
-    const std::string sourcePathedFile = CleanPath(CWD + originalSourceFile);
+    const std::string CWD = tinytools::file::GetCurrentWorkingDirectory() + "/";
+    const std::string sourcePathedFile = tinytools::file::CleanPath(CWD + originalSourceFile);
 
     // Sanity check, is file there?
-    if( FileExists(sourcePathedFile) == false )
+    if( tinytools::file::FileExists(sourcePathedFile) == false )
         return EXIT_FAILURE;
 
     // Get the path to the source file, need this as we need to insert the project configuration name so we can find it.
-    const std::string sourceFilePath = GetPath(sourcePathedFile);
+    const std::string sourceFilePath = tinytools::file::GetPath(sourcePathedFile);
 
     // This is the temp folder path we use to cache build results.
     const std::string tempFolderPath("/tmp/seabang/");
@@ -199,14 +161,14 @@ int main(int argc,char *argv[])
     // This is done so we only have to build when something changes.
     // To ensure no clashes I take the fully pathed source file name
     // and add /tmp to the start for the temp folder. I also add .exe at the end.
-    const std::string exename = GetFileName(sourcePathedFile) + ".exe";
-    const std::string pathedExeName = CleanPath(tempFolderPath + sourceFilePath + exename);
+    const std::string exename = tinytools::file::GetFileName(sourcePathedFile) + ".exe";
+    const std::string pathedExeName = tinytools::file::CleanPath(tempFolderPath + sourceFilePath + exename);
 
     // We need the source file without the shebang too.
-    const std::string tempSourcefile = CleanPath(tempFolderPath + sourcePathedFile);
+    const std::string tempSourcefile = tinytools::file::CleanPath(tempFolderPath + sourcePathedFile);
 
     // The temp folder that it's all done in.
-    const std::string projectTempFolder = GetPath(tempSourcefile);
+    const std::string projectTempFolder = tinytools::file::GetPath(tempSourcefile);
 
 #ifdef DEBUG_BUILD
     std::cout << "CWD " << CWD << std::endl;
@@ -215,17 +177,17 @@ int main(int argc,char *argv[])
 #endif
 
     // Make sure our temp folder is there.
-    MakeDir(projectTempFolder);
+    tinytools::file::MakeDir(projectTempFolder);
 
-    StringVec libraryFiles;
+    tinytools::StringVec libraryFiles;
 
     // First see if the source file that does not have the shebang in it is there.
-    bool rebuildNeeded = CompareFileTimes(sourcePathedFile,tempSourcefile);
+    bool rebuildNeeded = tinytools::file::CompareFileTimes(sourcePathedFile,tempSourcefile);
 
     // Now, it may have built but failed to link, so we then need to change is the output is there.
     if( rebuildNeeded == false )
     {
-        rebuildNeeded = CompareFileTimes(sourcePathedFile,pathedExeName);
+        rebuildNeeded = tinytools::file::CompareFileTimes(sourcePathedFile,pathedExeName);
     }
 
     if( rebuildNeeded )
@@ -286,7 +248,7 @@ int main(int argc,char *argv[])
     if( rebuildNeeded )
     {
         // First compile the new source file that is in the temp folder, this has the she bang removed, so it'll compile.
-        StringVec args;
+        tinytools::StringVec args;
 
         args.push_back(tempSourcefile);
 
@@ -317,7 +279,7 @@ int main(int argc,char *argv[])
         args.push_back(pathedExeName);
 
         std::string compileOutput;
-        const bool comiledOK = ExecuteShellCommand("g++",args,compileOutput);
+        const bool comiledOK = tinytools::system::ExecuteShellCommand("g++",args,compileOutput);
         if( compileOutput.size() > 0 && (comiledOK == false || gVerboseLogging ) )
         {
             std::clog << compileOutput << "\n";
@@ -326,7 +288,7 @@ int main(int argc,char *argv[])
 
 
     // See if we have the output file, if so run it!
-    if( FileExists(pathedExeName) )
+    if( tinytools::file::FileExists(pathedExeName) )
     {// I will not be using ExecuteShellCommand as I need to replace this exec to allow the input and output to be taken over.
 
         if( chdir(CWD.c_str()) != 0 )
@@ -342,10 +304,10 @@ int main(int argc,char *argv[])
 
         char** TheArgs = new char*[(argc - 3) + 2];// -3 for the args sent into shebang, then +1 for the NULL and +1 for the file name as per convention, see https://linux.die.net/man/3/execlp.
         int c = 0;
-        TheArgs[c++] = CopyString(pathedExeName);
+        TheArgs[c++] = tinytools::string::CopyString(pathedExeName);
         for( int n = 3 ; n < argc ; n++ )
         {
-            char* str = CopyString(argv[n],ARG_MAX);
+            char* str = tinytools::string::CopyString(argv[n],ARG_MAX);
             if(str)
             {
                 //Trim leading white space.
