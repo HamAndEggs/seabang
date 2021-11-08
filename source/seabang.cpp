@@ -26,7 +26,7 @@
 #include <memory>
 
 #include "TinyTools.h"
-
+#include "dependencies.h"
 
 static bool gVerboseLogging = false;
 
@@ -128,7 +128,8 @@ int main(int argc,char *argv[])
     const tinytools::StringVec applicationExtraArguments = GetArgumentsForApplication(argc,argv);
 
     // Lets see if they want verbose logging.
-    gVerboseLogging = tinytools::string::Search(seaBangExtraArguments,"-v");
+    gVerboseLogging = tinytools::string::Search(seaBangExtraArguments,"--verbose");
+    bool rebuildNeeded = tinytools::string::Search(seaBangExtraArguments,"--rebuild");
     const bool releaseBuild = true; // Add option for this.
 
     if( gVerboseLogging )
@@ -182,12 +183,22 @@ int main(int argc,char *argv[])
     tinytools::StringVec libraryFiles;
 
     // First see if the source file that does not have the shebang in it is there.
-    bool rebuildNeeded = tinytools::file::CompareFileTimes(sourcePathedFile,tempSourcefile);
-
-    // Now, it may have built but failed to link, so we then need to change is the output is there.
+    // May have been forced on.
     if( rebuildNeeded == false )
     {
-        rebuildNeeded = tinytools::file::CompareFileTimes(sourcePathedFile,pathedExeName);
+        rebuildNeeded = tinytools::file::CompareFileTimes(sourcePathedFile,tempSourcefile);
+    }
+
+    // Ok, so the source file may not have changed but has any of it's dependencies?
+    // This will also check the age of the source file against the age of the executable file.
+    // Don't need to do this if we're building anyway.
+    if( rebuildNeeded == false )
+    {
+        tinytools::StringVec includePaths;
+        includePaths.push_back("/usr/include");
+        includePaths.push_back("/usr/local/include");
+        Dependencies sourceFileDependencies;
+        rebuildNeeded = sourceFileDependencies.RequiresRebuild(sourcePathedFile,pathedExeName,includePaths);
     }
 
     if( rebuildNeeded )
@@ -275,17 +286,22 @@ int main(int argc,char *argv[])
         args.push_back("-lstdc++");  // C++ stuff
         args.push_back("-lpthread");  // For threading
 
+        if( gVerboseLogging )
+        {
+            args.push_back("-v");
+        }
+
+        // And set the output file.
         args.push_back("-o");
         args.push_back(pathedExeName);
 
         std::string compileOutput;
-        const bool comiledOK = tinytools::system::ExecuteShellCommand("g++",args,compileOutput);
-        if( compileOutput.size() > 0 && (comiledOK == false || gVerboseLogging ) )
+        const bool compliedOK = tinytools::system::ExecuteShellCommand("g++",args,compileOutput);
+        if( compileOutput.size() > 0 && (compliedOK == false || gVerboseLogging ) )
         {
             std::clog << compileOutput << "\n";
         }
     }
-
 
     // See if we have the output file, if so run it!
     if( tinytools::file::FileExists(pathedExeName) )
