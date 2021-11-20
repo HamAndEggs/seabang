@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <vector>
 #include <memory>
+#include <assert.h>
 
 #include "TinyTools.h"
 #include "dependencies.h"
@@ -46,7 +47,7 @@ static const char* GetSourceFileFromArguments(int argc,char *argv[])
 
 static const tinytools::StringVec GetArgumentsForSeabang(int argc,char *argv[])
 {
-    // If not arguments then pass back empty vector
+    // If no arguments then pass back empty vector
     if( argc > 2 )
     {
         // If it's a file, assume seabang not passed with any argument.
@@ -63,7 +64,7 @@ static const tinytools::StringVec GetArgumentsForSeabang(int argc,char *argv[])
 static const tinytools::StringVec GetArgumentsForApplication(int argc,char *argv[])
 {
     tinytools::StringVec args;
-    // If not arguments then pass back empty vector
+    // If no arguments then pass back empty vector
     if( argc > 2 )
     {
         // If it's a file, assume seabang not passed with any argument.
@@ -76,7 +77,7 @@ static const tinytools::StringVec GetArgumentsForApplication(int argc,char *argv
         }
         else
         {
-            // argv[1] was not a file, assume argv[2] is oyr file. So use argv[3] and one wards, if give.
+            // argv[1] was not a file, assume argv[2] is our file. So use argv[3] and one wards, if give.
             if( argc > 3 )
             {
                 for(int n = 3 ; n < argc ; n++ )
@@ -90,6 +91,28 @@ static const tinytools::StringVec GetArgumentsForApplication(int argc,char *argv
 
     return args;
 }
+
+static const tinytools::StringVec GetArgumentsForCompiler(const tinytools::StringVec& seaBangExtraArguments)
+{
+    // Scan the arguments for seabang and select which are know to be needed for the compiler.
+    tinytools::StringVec compilerArgs;
+
+    for( auto arg : seaBangExtraArguments )
+    {
+        if( tinytools::string::CompareNoCase(arg,"-D") )
+        {
+            compilerArgs.push_back(arg);
+        }
+        else if( tinytools::string::CompareNoCase(arg,"-l") )
+        {
+            compilerArgs.push_back(arg);
+        }
+
+    }
+
+    return compilerArgs;
+}
+
 
 static void LogArguments(const tinytools::StringVec& pArgs,const std::string& pWho)
 {
@@ -107,8 +130,34 @@ static void LogArguments(const tinytools::StringVec& pArgs,const std::string& pW
     }
 }
 
+static std::string FindTemporayFolder()
+{
+    const char* home = getenv("HOME");
+    if( home )
+    {
+        const std::string homeTmp = std::string(home) + "/tmp";
+        if( tinytools::file::DirectoryExists(homeTmp) )
+        {
+            return homeTmp;
+        }
+    }
+    return "/tmp";
+}
+
 int main(int argc,char *argv[])
 {
+    assert(tinytools::string::CompareNoCase("onetwo","one",3) == true);
+    assert(tinytools::string::CompareNoCase("onetwo","ONE",3) == true);
+    assert(tinytools::string::CompareNoCase("OneTwo","one",3) == true);
+    assert(tinytools::string::CompareNoCase("onetwo","oneX",3) == true);
+    assert(tinytools::string::CompareNoCase("OnE","oNe") == true);
+    assert(tinytools::string::CompareNoCase("onetwo","one") == true);	// Does it start with 'one'
+    assert(tinytools::string::CompareNoCase("onetwo","onetwothree",6) == true);
+    assert(tinytools::string::CompareNoCase("onetwo","onetwothreeX",6) == true);
+    assert(tinytools::string::CompareNoCase("onetwo","onetwothree") == false); // sorry, but we're searching for more than there is... false...
+    assert(tinytools::string::CompareNoCase("onetwo","onetwo") == true);
+
+
     // Got to be at least two args.
     if( argc < 2 )
     {
@@ -125,9 +174,11 @@ int main(int argc,char *argv[])
     // And so we need to look if argv[1] is a file or not. If it is assume no args passed to the shebang, if it is not assume it's args for the seabang exec.
     const std::string originalSourceFile = GetSourceFileFromArguments(argc,argv);
     const tinytools::StringVec seaBangExtraArguments = GetArgumentsForSeabang(argc,argv);
-    const tinytools::StringVec applicationExtraArguments = GetArgumentsForApplication(argc,argv);
+    const tinytools::StringVec applicationArguments = GetArgumentsForApplication(argc,argv);
+    const tinytools::StringVec compilerExtraArguments = GetArgumentsForCompiler(seaBangExtraArguments);
 
     // Lets see if they want verbose logging.
+    // All seabang arguments are in long form so not to get mixed up with arguments for the compiler.
     gVerboseLogging = tinytools::string::Search(seaBangExtraArguments,"--verbose");
     bool rebuildNeeded = tinytools::string::Search(seaBangExtraArguments,"--rebuild");
     const bool releaseBuild = true; // Add option for this.
@@ -136,7 +187,7 @@ int main(int argc,char *argv[])
     {
         std::clog << "originalSourceFile == " << originalSourceFile << "\n";
         LogArguments(seaBangExtraArguments,"seabang");
-        LogArguments(applicationExtraArguments,"application");
+        LogArguments(applicationArguments,"application");
     }
 
     const size_t ARG_MAX = 4096;
@@ -152,7 +203,7 @@ int main(int argc,char *argv[])
     const std::string sourceFilePath = tinytools::file::GetPath(sourcePathedFile);
 
     // This is the temp folder path we use to cache build results.
-    const std::string tempFolderPath("/tmp/seabang/");
+    const std::string tempFolderPath(FindTemporayFolder() + "/seabang/");
 
     // Use the source file as the 'project name' for error reports.
     // This is the name of the project that the user will expect to see in errors.
@@ -291,6 +342,12 @@ int main(int argc,char *argv[])
             args.push_back("-v");
         }
 
+        // Add stuff passed in for the compiler
+        for( auto arg : compilerExtraArguments )
+        {
+            args.push_back(arg);
+        }
+
         // And set the output file.
         args.push_back("-o");
         args.push_back(pathedExeName);
@@ -318,20 +375,13 @@ int main(int argc,char *argv[])
             std::clog << "Running exec: " << pathedExeName << "\n";
         }
 
-        char** TheArgs = new char*[(argc - 3) + 2];// -3 for the args sent into shebang, then +1 for the NULL and +1 for the file name as per convention, see https://linux.die.net/man/3/execlp.
+        // The args sent into shebang for the app, then +1 for the NULL and +1 for the file name as per convention, see https://linux.die.net/man/3/execlp.
+        char** TheArgs = new char*[applicationArguments.size() + 2];
         int c = 0;
         TheArgs[c++] = tinytools::string::CopyString(pathedExeName);
-        for( int n = 3 ; n < argc ; n++ )
+        for( auto arg : applicationArguments )
         {
-            char* str = tinytools::string::CopyString(argv[n],ARG_MAX);
-            if(str)
-            {
-                //Trim leading white space.
-                while(isspace(str[0]) && str[0])
-                    str++;
-                if(str[0])
-                    TheArgs[c++] = str;
-            }
+            TheArgs[c++] = tinytools::string::CopyString(arg);
         }
         TheArgs[c++] = NULL;
 
