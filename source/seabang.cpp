@@ -181,7 +181,7 @@ int main(int argc,char *argv[])
     // All seabang arguments are in long form so not to get mixed up with arguments for the compiler.
     gVerboseLogging = tinytools::string::Search(seaBangExtraArguments,"--verbose");
     bool rebuildNeeded = tinytools::string::Search(seaBangExtraArguments,"--rebuild");
-    const bool releaseBuild = true; // Add option for this.
+    const bool debugBuild = tinytools::string::Search(seaBangExtraArguments,"--debug");
 
     if( gVerboseLogging )
     {
@@ -307,26 +307,30 @@ int main(int argc,char *argv[])
     }
 
     // No point doing the link stage is the source file has not changed!
+    bool compliedOK = true;
     if( rebuildNeeded )
     {
+        // Make source output is deleted so can run if there was a build error.
+        std::remove(pathedExeName.c_str());
+
         // First compile the new source file that is in the temp folder, this has the she bang removed, so it'll compile.
         tinytools::StringVec args;
 
         args.push_back(tempSourcefile);
 
         // For now, we'll build a release build. Later I'll add an option for a debug or release to be selected in the comand line options to seabang.
-        if( releaseBuild )
+        if( debugBuild )
+        {
+            args.push_back("-o0");
+            args.push_back("-g2");
+            args.push_back("-DDEBUG_BUILD");
+        }
+        else
         {
             args.push_back("-o2");
             args.push_back("-g0");
             args.push_back("-DRELEASE_BUILD");
             args.push_back("-DNDEBUG");
-        }
-        else
-        {
-            args.push_back("-o0");
-            args.push_back("-g2");
-            args.push_back("-DDEBUG_BUILD");
         }
 
         // For now we'll assume c++17, later add option to allow them to define this. Will always default to c++17
@@ -353,7 +357,7 @@ int main(int argc,char *argv[])
         args.push_back(pathedExeName);
 
         std::string compileOutput;
-        const bool compliedOK = tinytools::system::ExecuteShellCommand("g++",args,compileOutput);
+        compliedOK = tinytools::system::ExecuteShellCommand("g++",args,compileOutput);
         if( compileOutput.size() > 0 && (compliedOK == false || gVerboseLogging ) )
         {
             std::clog << compileOutput << "\n";
@@ -361,7 +365,7 @@ int main(int argc,char *argv[])
     }
 
     // See if we have the output file, if so run it!
-    if( tinytools::file::FileExists(pathedExeName) )
+    if( compliedOK && tinytools::file::FileExists(pathedExeName) )
     {// I will not be using ExecuteShellCommand as I need to replace this exec to allow the input and output to be taken over.
 
         if( chdir(CWD.c_str()) != 0 )
