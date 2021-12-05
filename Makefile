@@ -1,3 +1,4 @@
+#COMPILE = cc -std=c++17 -o0 -g2 -o $@
 COMPILE = cc -std=c++17 -o2 -o $@
 BIN_FOLDER = /usr/bin
 OUTPUT_PATH = ./build

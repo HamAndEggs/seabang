@@ -3,6 +3,7 @@
  * @author Richard e Collins
  * @version 0.1
  * @date 2021-03-15
+ * https://github.com/HamAndEggs/TinyTools
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -70,6 +71,35 @@ inline float RoundToPointFive(float pValue)
 	const float frac = std::round(GetFractional(pValue)*2.0f) / 2.0f;
 	return integer + frac;
 }
+
+// Taken from the site: https://tttapa.github.io/Pages/Mathematics/Systems-and-Control-Theory/Digital-filters/Simple%20Moving%20Average/C++Implementation.html
+template <uint8_t N, class input_t = uint16_t, class sum_t = uint32_t>
+// Simple Moving Average difference equation
+class SimpleMovingAverage
+{
+public:
+	input_t operator()(input_t input)
+	{
+		sum -= previousInputs[index];
+		sum += input;
+		previousInputs[index] = input;
+		if (++index == N)
+		index = 0;
+		return (sum + (N / 2)) / N;
+	}
+
+	static_assert
+	(
+		sum_t(0) < sum_t(-1),  // Check that `sum_t` is an unsigned type
+		"Error: sum data type should be an unsigned integer, otherwise, "
+		"the rounding operation in the return statement is invalid."
+	);
+
+private:
+	uint8_t index             = 0;
+	input_t previousInputs[N] = {};
+	sum_t sum                 = 0;
+};
 
 };//namespace math{
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -388,6 +418,65 @@ private:
     std::mutex mSleeperMutex;			//!< This is used to correctly use the condition variable.
 };
 
+/**
+ * @brief This is the ring buffer container.
+ * As long as you can grantee that only one thread is writing and one thread is reading no locks are needed.
+ * The reading and writing threads can be different.
+ * The writing thread must not call ReadNext.
+ * The reading thread must not call WriteNext.
+ * Using volatile is to force the suppression of optimisations
+ * that could otherwise occur on the counters that could break the lockless nature of the buffer.
+ */
+class LocklessRingBuffer
+{
+public:
+    /**
+     * @brief Allocates a buffer object.
+     * 
+     * @param pItemSizeof The size of each item being but into the buffer.
+     * @param pItemCount The number of items in the buffer.
+     */
+    LocklessRingBuffer(size_t pItemSizeof,size_t pItemCount);
+
+    ~LocklessRingBuffer();
+
+	/**
+	 * @brief Will state if there is data to be read or not.
+	 * 
+	 * @return true No data to be read.
+	 * @return false There is data to read.
+	 */
+	bool Empty()const{return mCurrentReadPos == mNextWritePos;}
+	
+	/**
+     * @brief Reads the next item that is in the buffer.
+	 * 
+	 * @param rItem The memory store to write the data too.
+	 * @param pBufferSize The size of the buffer we're writing too.
+	 * @return true If data was read.
+	 * @return false If the buffer is empty.
+	 */
+    bool ReadNext(void* rItem,size_t pBufferSize);
+
+    /**
+     * @brief Writes an item to the buffer.
+     * 
+     * @param pItem The item to write.
+	 * @param pBufferSize The size of the buffer we're reading.
+     * @return true if there was room to write the item, false if the buffer is full and items can not be written.
+     */
+    bool WriteNext(const void* pItem,size_t pBufferSize);
+
+private:
+    volatile int mCurrentReadPos;//!< The current item READ index in the buffer. That is mBuffer + (mCurrentReadPos * mItemSizeof)    
+    volatile int mNextWritePos;//!< The current item WRITE index in the buffer. That is mBuffer + (mNextWritePos * mItemSizeof)
+    
+    uint8_t *mBuffer;
+    size_t mItemSizeof;
+    size_t mItemCount;
+};
+
+
 };//namespace threading{
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -512,6 +601,13 @@ std::string GetRelativePath(const std::string& pCWD,const std::string& pFullPath
  */
 bool CompareFileTimes(const std::string& pSourceFile,const std::string& pDestFile);
 
+/**
+ * @brief Loads the contents of the file into a string object.
+ * Throws an exception if file not found.
+ * @param pFilename 
+ * @return std::string 
+ */
+std::string LoadFileIntoString(const std::string& pFilename);
 
 };// namespace file
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////

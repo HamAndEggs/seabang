@@ -55,7 +55,6 @@
 
 namespace tinytools{	// Using a namespace to try to prevent name clashes as my class name is kind of obvious. :)
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 namespace math
 {
 };
@@ -121,7 +120,13 @@ StringVec SplitString(const std::string& pString, const char* pSeperator)
 {
     StringVec res;
     for (size_t p = 0, q = 0; p != pString.npos; p = q)
-        res.push_back(pString.substr(p + (p != 0), (q = pString.find(pSeperator, p + 1)) - p - (p != 0)));
+	{
+		const std::string part(pString.substr(p + (p != 0), (q = pString.find(pSeperator, p + 1)) - p - (p != 0)));
+		if( part.size() > 0 )
+		{
+	        res.push_back(part);
+		}
+	}
     return res;
 }
 
@@ -861,6 +866,70 @@ void SleepableThread::TellThreadToExitAndWait()
 	}
 }
 
+LocklessRingBuffer::LocklessRingBuffer(size_t pItemSizeof,size_t pItemCount)
+{
+    mBuffer = new uint8_t[pItemSizeof * pItemCount];
+    mItemSizeof = pItemSizeof;
+    mItemCount = pItemCount;
+    mCurrentReadPos = 0;
+    mNextWritePos = 0;    
+}
+
+LocklessRingBuffer::~LocklessRingBuffer()
+{
+    delete []mBuffer;
+}
+
+bool LocklessRingBuffer::ReadNext(void* rItem,size_t pBufferSize)
+{
+    void *item = NULL;
+    volatile int NextPos = 0;
+
+    // If we have caught up with the write index then we're blocked and return NULL.
+    // Current read pos is allowed to become the same as the write pos.
+    if( mCurrentReadPos == mNextWritePos )
+        return false;
+
+    // Get the items address
+    item = mBuffer + (mCurrentReadPos * mItemSizeof);
+
+    // Copy before advancing the read buffer so it can't get over written.
+    const size_t numBytesToCopy = pBufferSize < mItemSizeof ? pBufferSize : mItemSizeof;
+    memcpy(rItem,item,numBytesToCopy);
+
+    // Advance to where we want to read from next time.
+    // Also we don't write new index till we have calculated it. Makes the write a single instruction and so atomic.
+    NextPos = (mCurrentReadPos+1)%mItemCount;
+
+    // Write with one instuction.
+    mCurrentReadPos = NextPos;
+    
+    return true;
+}
+
+bool LocklessRingBuffer::WriteNext(const void* pItem,size_t pBufferSize)
+{
+    // Notice how the logic for testing for overwrite is a 'little' different to the one above.
+    // This is important. It deals with then there is no data in the buffer and we need to write.
+    // The write pos is NOT allowed to become the same as the read pos.
+    // Also we don't write result till we are done. Makes the write a single instruction and so atomic.
+    volatile int NextPos = (mNextWritePos+1)%mItemCount;
+
+    // If we have caught up with the read index then we're blocked, return false. Data not written
+    if( NextPos == mCurrentReadPos )
+        return false;
+
+    const size_t numBytesToCopy = pBufferSize < mItemSizeof ? pBufferSize : mItemSizeof;
+    memcpy(mBuffer + (mNextWritePos * mItemSizeof),
+            pItem,
+            numBytesToCopy);
+
+    // Move to the place we'll next write too.
+    mNextWritePos = NextPos;
+
+    return true;// Written ok.
+}
+
 };//namespace threading{
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 CommandLineOptions::CommandLineOptions(const std::string& pUsageHelp):mUsageHelp(pUsageHelp)
@@ -1295,6 +1364,22 @@ bool CompareFileTimes(const std::string& pSourceFile,const std::string& pDestFil
     }
 
     return true;
+}
+
+std::string LoadFileIntoString(const std::string& pFilename)
+{
+    std::ifstream jsonFile(pFilename);
+    if( jsonFile.is_open() )
+    {
+        std::stringstream jsonStream;
+        jsonStream << jsonFile.rdbuf();// Read the whole file in...
+
+        return jsonStream.str();
+    }
+
+    std::throw_with_nested(std::runtime_error("Jons file not found " + pFilename));
+
+    return "";
 }
 
 };//namespace file{
