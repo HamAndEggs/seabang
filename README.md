@@ -19,4 +19,4 @@ int main(int argc, char *argv[])
     return EXIT_SUCCESS;
 }
 ```
-Then make source file executable and your done. You can not run your c/c++ source files.
+Then make source file executable and your done. You can now run your c/c++ source files.
