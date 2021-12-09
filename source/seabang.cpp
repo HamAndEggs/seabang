@@ -435,6 +435,11 @@ int main(int argc,char *argv[])
             args.push_back("-DNDEBUG");
         }
 
+        // Need to add the current working dir as a search path.
+        // This is because the file maybe including a a file from a local path and not the system include folder.
+        // E.g #include "../somecode.cpp"
+        args.push_back("-I" + CWD);
+
         // For now we'll assume c++17, later add option to allow them to define this. Will always default to c++17
         args.push_back("-std=c++17");
         args.push_back("-Wall"); // Lots of warnings please.
