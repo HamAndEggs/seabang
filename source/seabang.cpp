@@ -350,6 +350,7 @@ int main(int argc,char *argv[])
         tinytools::StringVec includePaths;
         includePaths.push_back("/usr/include");
         includePaths.push_back("/usr/local/include");
+        includePaths.push_back(CWD);
         Dependencies sourceFileDependencies;
         rebuildNeeded = sourceFileDependencies.RequiresRebuild(sourcePathedFile,pathedExeName,includePaths);
     }
