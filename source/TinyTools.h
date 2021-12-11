@@ -552,10 +552,24 @@ bool MakeDir(const std::string& pPath);
  */
 bool MakeDirForFile(const std::string& pPathedFilename);
 
+/**
+ * @brief Get the Current Working Directory
+ */
 std::string GetCurrentWorkingDirectory();
+
+/**
+ * @brief Tries to clean the path passed in. So things lile /./ become /
+ */
 std::string CleanPath(const std::string& pPath);
 
+/**
+ * @brief Gets the File Name from the pathed filename string.
+ */
 std::string GetFileName(const std::string& pPathedFileName,bool RemoveExtension = false);
+
+/**
+ * @brief Gets the Path from the pathed filename string.
+ */
 std::string GetPath(const std::string& pPathedFileName);
 
 /**

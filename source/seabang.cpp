@@ -424,7 +424,6 @@ int main(int argc,char *argv[])
         // For now, we'll build a release build. Later I'll add an option for a debug or release to be selected in the comand line options to seabang.
         if( debugBuild )
         {
-            args.push_back("-o0");
             args.push_back("-g2");
             args.push_back("-DDEBUG_BUILD");
         }
