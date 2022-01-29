@@ -33,9 +33,11 @@
 
 build/
 autom4te.cache/
+.deps/
 aclocal.m4
 config.log
 config.status
 depcomp
 missing
+compile
 
