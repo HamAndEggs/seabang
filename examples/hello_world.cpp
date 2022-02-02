@@ -1,4 +1,4 @@
-#!./build/seabang
+#!/usr/local/bin/seabang
 
 #include <iostream>
 

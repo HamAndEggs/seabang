@@ -1,4 +1,4 @@
-#!/usr/bin/seabang -lncurses
+#!/usr/local/bin/seabang -lncurses
 // make sure you have compiled and installed seabang.
 
 /**

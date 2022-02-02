@@ -1,4 +1,4 @@
-#!/bin/seabang
+#!/usr/local/bin/seabang
 
 #include <stdio.h>
 
