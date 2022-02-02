@@ -632,7 +632,7 @@ bool GetMemoryUsage(size_t& rMemoryUsedKB,size_t& rMemAvailableKB,size_t& rMemTo
 			}
 
 			rMemoryUsedKB = MemTotal - MemFree - mainCached - Buffers;
-			if (rMemoryUsedKB < 0)
+			if (rMemoryUsedKB == 0)
 			{
 				rMemoryUsedKB = MemTotal - MemFree;
 			}

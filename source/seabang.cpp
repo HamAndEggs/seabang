@@ -292,8 +292,6 @@ int main(int argc,char *argv[])
         LogArguments(compilerExtraArguments,"compiler");
     }
 
-    const size_t ARG_MAX = 4096;
-
     const std::string CWD = tinytools::file::GetCurrentWorkingDirectory() + "/";
     const std::string sourcePathedFile = tinytools::file::CleanPath(CWD + originalSourceFile);
 
@@ -323,6 +321,8 @@ int main(int argc,char *argv[])
 
     // The temp folder that it's all done in.
     const std::string projectTempFolder = tinytools::file::GetPath(tempSourcefile);
+
+    const std::string CompilerToUse = CMAKE_CXX_COMPILER;//"g++";
 
 #ifdef DEBUG_BUILD
     std::cout << "CWD " << CWD << std::endl;
@@ -464,7 +464,7 @@ int main(int argc,char *argv[])
         args.push_back(pathedExeName);
 
         std::string compileOutput;
-        compliedOK = tinytools::system::ExecuteShellCommand("g++",args,compileOutput);
+        compliedOK = tinytools::system::ExecuteShellCommand(CompilerToUse,args,compileOutput);
         if( compileOutput.size() > 0 && (compliedOK == false || gVerboseLogging ) )
         {
             std::clog << compileOutput << "\n";

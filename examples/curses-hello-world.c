@@ -1,4 +1,4 @@
-#!./build/seabang -lncurses
+#!/usr/local/bin/seabang -lncurses
 // Example of how to link against other libs
 
 #include <ncurses.h> // sudo apt install libncurses5-dev
