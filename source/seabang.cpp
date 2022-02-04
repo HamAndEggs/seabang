@@ -29,6 +29,9 @@
 #include "TinyTools.h"
 #include "dependencies.h"
 
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
 static bool gVerboseLogging = false;
 
 
@@ -59,6 +62,29 @@ static const tinytools::StringVec GetArgumentsForSeabang(int argc,char *argv[])
     }
 
     return tinytools::StringVec();
+}
+
+/**
+ * @brief Get the value that an argument is set to.
+ * E.G Will return FRED for --name=FRED, also deals with spaces.
+ * Has to assume if = is found after argument that the next arg is the value.
+ */
+static const std::string GetArgumentValue(const tinytools::StringVec& args, const std::string theArg)
+{
+    for( auto s : args )
+    {
+        if( tinytools::string::CompareNoCase(s,theArg) )
+        {
+            // Does the arg contain an = sign?
+            const size_t equality = s.find('=');
+            if( equality != std::string::npos )
+            {
+                // Grab the rest of the string as the value.
+                return s.substr(equality+1);
+            }
+        }
+    }
+    return "";
 }
 
 static const tinytools::StringVec GetArgumentsForApplication(int argc,char *argv[])
@@ -130,6 +156,9 @@ static void LogArguments(const tinytools::StringVec& pArgs,const std::string& pW
     }
 }
 
+/**
+ * @brief Looks to see if there is a tmp folder in the users home directory, if not defaults to /tmp
+ */
 static std::string FindTemporayFolder()
 {
     const char* home = getenv("HOME");
@@ -141,9 +170,50 @@ static std::string FindTemporayFolder()
             return homeTmp;
         }
     }
+    // No reasonble alternative found so use the one that most distros use.
     return "/tmp";
 }
 
+/**
+ * @brief Selects the compiler that we should used.
+ */
+const std::string SelectComplier(const tinytools::StringVec& seaBangExtraArguments)
+{
+    // The order is important and defined in the documentation.
+    // First see if seabang was invoked with the complier overide.
+    const std::string cmdCompiler = GetArgumentValue(seaBangExtraArguments,"--seabang-compiler");
+    if( cmdCompiler.size() > 0 )
+    {
+        if( gVerboseLogging )
+        {
+            std::clog << "Compiler overwritten to use " << cmdCompiler << "\n";
+        }
+        return cmdCompiler;
+    }
+
+    // No argument passed, so see if an environment varible was set.
+    const char* envCompiler = getenv("SEABANG_CXX_COMPILER");
+    if( envCompiler != nullptr )
+    {
+        const std::string compiler = std::string(envCompiler);
+        if( gVerboseLogging )
+        {
+            std::clog << "Compiler overwritten with environment varible, using " << compiler << "\n";
+        }
+        return compiler;
+    }
+
+    if( gVerboseLogging )
+    {
+        std::clog << "Using default compiler " << SEABANG_CXX_COMPILER << "\n";
+    }
+
+    return SEABANG_CXX_COMPILER;
+}
+
+/**
+ * @brief Displays the help text.
+ */
 static void DisplayHelp()
 {
 const std::string_view helpText =
@@ -153,9 +223,19 @@ This command is not to be executed directly but to be placed at the top of a c/c
 The options specified here are ones that either affect the operation of seabang or are passed to the compiler.
 Options from the code file being run are passed in as usual, for example hello_world.cpp --help
 seabang does not have any short options so that they do not clash with options for the compiler.
-Compiler currently used is fixed as g++.
+Compiler built to use )" TOSTRING(SEABANG_CXX_COMPILER) R"(
+Please not, due to the way shebang options work, any argument for seabang and that takes an value
+   must not contain a space. For example '--seabang-compiler=compiler' is ok,
+   '--seabang-compiler = compiler' will fail.
+
+The environment varible SEABANG_CXX_COMPILER can be used to change the compiler used by default.
+    eg. SEABANG_CXX_COMPILER=gcc ./my-code.cpp
 
 Mandatory arguments to long options are mandatory for short options too.
+    --seabang-compiler=compiler Allows a specific source file to use a compiler that is not the norm.
+              This overides the compiler set with SEABANG_CXX_COMPILER and the default one.
+              Example, --seabang-compiler=gcc
+
     --verbose Enables logging so you can see what seabang is doing.
               Also enables verbose logging for the compiler.
 
@@ -232,7 +312,6 @@ along with seabang.  If not, see <https://www.gnu.org/licenses/>.
 )";
 
     std::cout << helpText << "\n";
-
 }
 
 int main(int argc,char *argv[])
@@ -322,7 +401,8 @@ int main(int argc,char *argv[])
     // The temp folder that it's all done in.
     const std::string projectTempFolder = tinytools::file::GetPath(tempSourcefile);
 
-    const std::string CompilerToUse = CMAKE_CXX_COMPILER;//"g++";
+    // Pick the compiler that the user wants or was selected when the tool was built.
+    const std::string CompilerToUse = SelectComplier(seaBangExtraArguments);
 
 #ifdef DEBUG_BUILD
     std::cout << "CWD " << CWD << std::endl;
