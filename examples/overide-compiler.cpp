@@ -1,5 +1,3 @@
-#!../build/seabang --verbose
-//#!../build/seabang --seabang-compiler=gcc --verbose
 //#!/usr/local/bin/seabang --seabang-compiler=gcc
 
 #include <iostream>
