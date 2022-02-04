@@ -15,6 +15,7 @@ int main(int argc, char *argv[])
         {
             i += rand();
         }
+        
         std::clog << i << "\n";
     }).join();
 

@@ -34,7 +34,9 @@
 
 static bool gVerboseLogging = false;
 
-
+/**
+ * @brief Get the source file from the arguments
+ */
 static const char* GetSourceFileFromArguments(int argc,char *argv[])
 {
     if( argc == 2 )
@@ -48,6 +50,9 @@ static const char* GetSourceFileFromArguments(int argc,char *argv[])
     return argv[2];
 }
 
+/**
+ * @brief Get the Arguments that are for use in seabang.
+ */
 static const tinytools::StringVec GetArgumentsForSeabang(int argc,char *argv[])
 {
     // If no arguments then pass back empty vector
@@ -87,6 +92,11 @@ static const std::string GetArgumentValue(const tinytools::StringVec& args, cons
     return "";
 }
 
+/**
+ * @brief Get the Arguments passed to the file that is being executed
+ * These arguments are then passed to the compiled exec.
+ * So you can do things like ./wait.cpp -n=3
+ */
 static const tinytools::StringVec GetArgumentsForApplication(int argc,char *argv[])
 {
     tinytools::StringVec args;
@@ -118,6 +128,9 @@ static const tinytools::StringVec GetArgumentsForApplication(int argc,char *argv
     return args;
 }
 
+/**
+ * @brief Get the single dashed arguments, passed onto the compiler
+ */
 static const tinytools::StringVec GetArgumentsForCompiler(const tinytools::StringVec& seaBangExtraArguments)
 {
     // Scan the arguments for seabang and select which are know to be needed for the compiler.
@@ -125,21 +138,18 @@ static const tinytools::StringVec GetArgumentsForCompiler(const tinytools::Strin
 
     for( auto arg : seaBangExtraArguments )
     {
-        if( tinytools::string::CompareNoCase(arg,"-D") )
+        if( arg.size() > 1 && arg[0] == '-' && std::isalnum(arg[1]) )
         {
             compilerArgs.push_back(arg);
         }
-        else if( tinytools::string::CompareNoCase(arg,"-l") )
-        {
-            compilerArgs.push_back(arg);
-        }
-
     }
 
     return compilerArgs;
 }
 
-
+/**
+ * @brief When --verbose is used, this function is used to output the args to the log.
+ */
 static void LogArguments(const tinytools::StringVec& pArgs,const std::string& pWho)
 {
     if( pArgs.size() == 0 )
@@ -224,7 +234,7 @@ The options specified here are ones that either affect the operation of seabang 
 Options from the code file being run are passed in as usual, for example hello_world.cpp --help
 seabang does not have any short options so that they do not clash with options for the compiler.
 Compiler built to use )" TOSTRING(SEABANG_CXX_COMPILER) R"(
-Please not, due to the way shebang options work, any argument for seabang and that takes an value
+Please note, due to the way shebang options work, any argument for seabang and that takes an value
    must not contain a space. For example '--seabang-compiler=compiler' is ok,
    '--seabang-compiler = compiler' will fail.
 
@@ -246,57 +256,8 @@ Mandatory arguments to long options are mandatory for short options too.
               This options turns of all optimisations and generates the symbols needed for debbugging.
               Turn on verbose output to discover the out location of the exec if you need to debug it.
 
-    -D name
-            Predefine name as a macro, with definition 1.
-
-    -D name=definition
-           The contents of definition are tokenized and processed as if
-           they appeared during translation phase three in a #define
-           directive.  In particular, the definition is truncated by
-           embedded newline characters.
-
-           If you are invoking the preprocessor from a shell or shell-
-           like program you may need to use the shell's quoting syntax
-           to protect characters such as spaces that have a meaning in
-           the shell syntax.
-
-           If you wish to define a function-like macro on the command
-           line, write its argument list with surrounding parentheses
-           before the equals sign (if any).  Parentheses are meaningful
-           to most shells, so you should quote the option.  With sh and
-           csh, -D'name(args...)=definition' works.
-
-           -D and -U options are processed in the order they are given
-           on the command line.  All -imacros file and -include file
-           options are processed after all -D and -U options.
-
-    -llibrary
-    -l library
-           Search the library named library when linking.  (The second
-           alternative with the library as a separate argument is only
-           for POSIX compliance and is not recommended.)
-
-           The -l option is passed directly to the linker by GCC.  Refer
-           to your linker documentation for exact details.  The general
-           description below applies to the GNU linker.
-
-           The linker searches a standard list of directories for the
-           library.  The directories searched include several standard
-           system directories plus any that you specify with -L.
-
-           Static libraries are archives of object files, and have file
-           names like liblibrary.a.  Some targets also support shared
-           libraries, which typically have names like liblibrary.so.  If
-           both static and shared libraries are found, the linker gives
-           preference to linking with the shared library unless the
-           -static option is used.
-
-           It makes a difference where in the command you write this
-           option; the linker searches and processes libraries and
-           object files in the order they are specified.  Thus, foo.o
-           -lz bar.o searches library z after file foo.o but before
-           bar.o.  If bar.o refers to functions in z, those functions
-           may not be loaded.
+All single dash options (eg -lncurses) are passed to the compiler. This allows you to have some more
+control over the build settings. Such as specifying an optimisation option or a machine option.
 
 Seabang is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -314,6 +275,9 @@ along with seabang.  If not, see <https://www.gnu.org/licenses/>.
     std::cout << helpText << "\n";
 }
 
+/**
+ * @brief Our entrypoint called by the OS
+ */
 int main(int argc,char *argv[])
 {
     assert(tinytools::string::CompareNoCase("onetwo","one",3) == true);
