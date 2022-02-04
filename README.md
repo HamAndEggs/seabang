@@ -33,6 +33,16 @@ sudo make install
 
 or call the 'make_and_install.sh' script which does what is listed above.
 
+You can change the compiler that seabang calls. When seabang is built and installed you can set the compiler by passing in a define into cmake.
+
+e.g.
+```cmake -DSEABANG_CXX_COMPILER=gcc```
+
+If you don't do this seabang will use the compiler that cmake chooses.
+
+After seabang has been built and installed you can still change the compiler used with two options. Either set the environment variable SEABANG_CXX_COMPILER or call seabang in the shebang with the option --seabang-compiler=YOU-COMPILER. eg. --seabang-compiler=gcc
+
+
 # usage
 
 Usage: #!/usr/bin/seabang [OPTION]
