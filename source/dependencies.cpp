@@ -61,7 +61,9 @@ bool Dependencies::CheckSourceDependencies(const std::string& pSourceFile,const 
 
 	// Start the source file for a start then move onto scanning the file.
 	if( FileYoungerThanObjectFile(pSourceFile,pObjFileTime) )
+	{
 		return true;
+	}
 
 	// Get all the includes from the file.
 	tinytools::StringSet Includes;
@@ -142,9 +144,6 @@ bool Dependencies::GetIncludesFromFile(const std::string& pFilename,const tinyto
 		return true;
 	}
 
-//	std::cout << "GetIncludesFromFile(" << pFilename << ")" << std::endl;
-
-
 	assert(mDependencies.size() < 1000 );
 
 	std::ifstream file(pFilename);
@@ -172,8 +171,10 @@ bool Dependencies::GetIncludesFromFile(const std::string& pFilename,const tinyto
 
 						found++;// Next char.
 
+						// Don't include files included with <> as these SHOULD be system headers.
+						// There is a difference between #include "" and #include <>. Changes compiler search priorities.
 						// If we have a terminator then scan to the end and treat that as the filename.
-						if( terminator != 0 )
+						if( terminator == '\"' )
 						{
 							std::size_t start = found;
 							for(; found < aLine.size() && aLine[found] != terminator ; found++);
@@ -182,7 +183,6 @@ bool Dependencies::GetIncludesFromFile(const std::string& pFilename,const tinyto
 							if( aLine[found] == terminator )
 							{
 								std::string includefile = aLine.substr(start,found-start);
-
 
 								// Now see if we can find it.
 								for(const std::string& path : pIncludePaths )

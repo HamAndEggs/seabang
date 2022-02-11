@@ -40,6 +40,12 @@ e.g.
 
 If you don't do this seabang will use the compiler that cmake chooses.
 
+You can also change the default tempary folder seabang uses with the SEABANG_TEMPORAY_FOLDER define.
+e.g.
+```cmake -DSEABANG_TEMPORAY_FOLDER=~/temp```
+    This option is handy if you have a ram disk created to tmpfs.
+    Will make the results of the build vanish after boot and also work on read only disk systems, which is handy.
+
 After seabang has been built and installed you can still change the compiler used with two options. Either set the environment variable SEABANG_CXX_COMPILER or call seabang in the shebang with the option --seabang-compiler=YOU-COMPILER. eg. --seabang-compiler=gcc
 
 
@@ -58,11 +64,18 @@ Please note, due to the way shebang options work, any argument for seabang and t
 The environment varible SEABANG_CXX_COMPILER can be used to change the compiler used by default.
     eg. SEABANG_CXX_COMPILER=gcc ./my-code.cpp
 
-Mandatory arguments to long options are mandatory for short options too.
+The environment varible SEABANG_TEMPORAY_FOLDER can be used to change the tempoary folder used by default.
+    eg. SEABANG_TEMPORAY_FOLDER=~/tmp ./my-code.cpp
 
+
+Mandatory arguments to long options are mandatory for short options too.
     --seabang-compiler=compiler Allows a specific source file to use a compiler that is not the norm.
               This overides the compiler set with SEABANG_CXX_COMPILER and the default one.
               Example, --seabang-compiler=gcc
+
+    --seabang-temp-path=PATH Allows a specific source file to use a particular temporay folder.
+              This overides the compiler set with SEABANG_TEMPORAY_FOLDER and the default one.
+              Example, --seabang-temp-path=./bin
 
     --verbose Enables logging so you can see what seabang is doing.
               Also enables verbose logging for the compiler.
@@ -73,6 +86,11 @@ Mandatory arguments to long options are mandatory for short options too.
     --debug   By default the code is built with optimisations set to 2 and not symbol files created.
               This options turns of all optimisations and generates the symbols needed for debbugging.
               Turn on verbose output to discover the out location of the exec if you need to debug it.
+
+    --compact-path By default the temporay folder used for the intermidiary files includes the path of the source file.
+                   This is done to avoid file clashes. If there is a reason that this can not work for you
+                   then this option removes this. The intermediary files will use the temporay path
+                   plus the sources filename.
 
 All single dash options (eg -lncurses) are passed to the compiler. This allows you to have some more
 control over the build settings. Such as specifying an optimisation option or a machine option.
@@ -87,3 +105,4 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with seabang.  If not, see <https://www.gnu.org/licenses/>.
+

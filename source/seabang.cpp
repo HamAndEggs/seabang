@@ -34,6 +34,8 @@
 
 static bool gVerboseLogging = false;
 
+#define VLOG(__THING_TO_LOG) {if( gVerboseLogging ){std::clog << __THING_TO_LOG << "\n";}}
+
 /**
  * @brief Get the source file from the arguments
  */
@@ -166,22 +168,50 @@ static void LogArguments(const tinytools::StringVec& pArgs,const std::string& pW
     }
 }
 
-/**
- * @brief Looks to see if there is a tmp folder in the users home directory, if not defaults to /tmp
- */
-static std::string FindTemporayFolder()
+static std::string CorrectTemparyFolderString(std::string pFolder)
 {
-    const char* home = getenv("HOME");
-    if( home )
+    if( pFolder.back() != '/' )
+        pFolder += '/';
+
+    // Check for ~ home char. Need to replace with true HOME. Seen issues if I do not, makes a folder in CWD called '~'
+    if( pFolder.front() == '~' )
     {
-        const std::string homeTmp = std::string(home) + "/tmp";
-        if( tinytools::file::DirectoryExists(homeTmp) )
+        if( getenv("HOME") )
         {
-            return homeTmp;
+            pFolder = std::string(getenv("HOME")) + '/' + pFolder.substr(1);
         }
     }
-    // No reasonble alternative found so use the one that most distros use.
-    return "/tmp";
+    return pFolder;
+}
+
+/**
+ * @brief Allows the user to alter the temp folder used.
+ * The order is important and defined in the documentation.
+ */
+static std::string FindTemporayFolder(const tinytools::StringVec& seaBangExtraArguments)
+{
+    VLOG("1");
+    // First see if seabang was invoked with the temporay path overide.
+    const std::string cmdTempFolder = GetArgumentValue(seaBangExtraArguments,"--seabang-temp-path");
+    if( cmdTempFolder.size() > 0 )
+    {
+        VLOG("Compiler overwritten to use " << cmdTempFolder);
+        return CorrectTemparyFolderString(cmdTempFolder);
+    }
+    VLOG("2");
+
+    // Next see if the temp folder is defined in an environment varible.
+    if( getenv("SEABANG_TEMPORAY_FOLDER") != nullptr )
+    {
+        const std::string tempFolder = CorrectTemparyFolderString(getenv("SEABANG_TEMPORAY_FOLDER"));
+        if( tempFolder.empty() == false && tinytools::file::DirectoryExists(tempFolder) )
+        {
+            return tempFolder;
+        }
+    }
+
+    // No reasonble alternative found so use the one that setup in the make file. (which can be configured with cmake)
+    return CorrectTemparyFolderString(SEABANG_TEMPORAY_FOLDER);
 }
 
 /**
@@ -194,10 +224,7 @@ const std::string SelectComplier(const tinytools::StringVec& seaBangExtraArgumen
     const std::string cmdCompiler = GetArgumentValue(seaBangExtraArguments,"--seabang-compiler");
     if( cmdCompiler.size() > 0 )
     {
-        if( gVerboseLogging )
-        {
-            std::clog << "Compiler overwritten to use " << cmdCompiler << "\n";
-        }
+        VLOG("Compiler overwritten to use " << cmdCompiler);
         return cmdCompiler;
     }
 
@@ -206,17 +233,11 @@ const std::string SelectComplier(const tinytools::StringVec& seaBangExtraArgumen
     if( envCompiler != nullptr )
     {
         const std::string compiler = std::string(envCompiler);
-        if( gVerboseLogging )
-        {
-            std::clog << "Compiler overwritten with environment varible, using " << compiler << "\n";
-        }
+        VLOG("Compiler overwritten with environment varible, using " << compiler);
         return compiler;
     }
 
-    if( gVerboseLogging )
-    {
-        std::clog << "Using default compiler " << SEABANG_CXX_COMPILER << "\n";
-    }
+    VLOG("Using default compiler " << SEABANG_CXX_COMPILER);
 
     return SEABANG_CXX_COMPILER;
 }
@@ -233,7 +254,8 @@ This command is not to be executed directly but to be placed at the top of a c/c
 The options specified here are ones that either affect the operation of seabang or are passed to the compiler.
 Options from the code file being run are passed in as usual, for example hello_world.cpp --help
 seabang does not have any short options so that they do not clash with options for the compiler.
-Compiler built to use )" TOSTRING(SEABANG_CXX_COMPILER) R"(
+seabang was built to use the Compiler )" TOSTRING(SEABANG_CXX_COMPILER) R"(
+seaband was built to use the temporay folder )" TOSTRING(SEABANG_TEMPORAY_FOLDER) R"(
 Please note, due to the way shebang options work, any argument for seabang and that takes an value
    must not contain a space. For example '--seabang-compiler=compiler' is ok,
    '--seabang-compiler = compiler' will fail.
@@ -241,10 +263,17 @@ Please note, due to the way shebang options work, any argument for seabang and t
 The environment varible SEABANG_CXX_COMPILER can be used to change the compiler used by default.
     eg. SEABANG_CXX_COMPILER=gcc ./my-code.cpp
 
+The environment varible SEABANG_TEMPORAY_FOLDER can be used to change the tempoary folder used by default.
+    eg. SEABANG_TEMPORAY_FOLDER=~/tmp ./my-code.cpp
+
 Mandatory arguments to long options are mandatory for short options too.
     --seabang-compiler=compiler Allows a specific source file to use a compiler that is not the norm.
               This overides the compiler set with SEABANG_CXX_COMPILER and the default one.
               Example, --seabang-compiler=gcc
+
+    --seabang-temp-path=PATH Allows a specific source file to use a particular temporay folder.
+              This overides the compiler set with SEABANG_TEMPORAY_FOLDER and the default one.
+              Example, --seabang-temp-path=./bin
 
     --verbose Enables logging so you can see what seabang is doing.
               Also enables verbose logging for the compiler.
@@ -255,6 +284,11 @@ Mandatory arguments to long options are mandatory for short options too.
     --debug   By default the code is built with optimisations set to 2 and not symbol files created.
               This options turns of all optimisations and generates the symbols needed for debbugging.
               Turn on verbose output to discover the out location of the exec if you need to debug it.
+
+    --compact-path By default the temporay folder used for the intermidiary files includes the path of the source file.
+                   This is done to avoid file clashes. If there is a reason that this can not work for you
+                   then this option removes this. The intermediary files will use the temporay path
+                   plus the sources filename.
 
 All single dash options (eg -lncurses) are passed to the compiler. This allows you to have some more
 control over the build settings. Such as specifying an optimisation option or a machine option.
@@ -326,41 +360,39 @@ int main(int argc,char *argv[])
     gVerboseLogging = tinytools::string::Search(seaBangExtraArguments,"--verbose");
     bool rebuildNeeded = tinytools::string::Search(seaBangExtraArguments,"--rebuild");
     const bool debugBuild = tinytools::string::Search(seaBangExtraArguments,"--debug");
+    const bool compactTempPath = tinytools::string::Search(seaBangExtraArguments,"--compact-path");
 
     if( gVerboseLogging )
     {
-        std::clog << "originalSourceFile == " << originalSourceFile << "\n";
         LogArguments(seaBangExtraArguments,"seabang");
         LogArguments(applicationArguments,"application");
         LogArguments(compilerExtraArguments,"compiler");
     }
 
     const std::string CWD = tinytools::file::GetCurrentWorkingDirectory() + "/";
-    const std::string sourcePathedFile = tinytools::file::CleanPath(CWD + originalSourceFile);
+    const std::string pathedSourceFile = tinytools::file::CleanPath(CWD + originalSourceFile);
 
-    // Sanity check, is file there?
-    if( tinytools::file::FileExists(sourcePathedFile) == false )
+    // Sanity check, is file there? This is done to check for errors in the logic of the code above. 
+    if( tinytools::file::FileExists(pathedSourceFile) == false )
+    {
+        VLOG("The source file we are trying to run is not found at: " << pathedSourceFile);
         return EXIT_FAILURE;
+    }
 
     // Get the path to the source file, need this as we need to insert the project configuration name so we can find it.
-    const std::string sourceFilePath = tinytools::file::GetPath(sourcePathedFile);
+    const std::string sourceFilePath = tinytools::file::GetPath(pathedSourceFile);
 
     // This is the temp folder path we use to cache build results.
-    const std::string tempFolderPath(FindTemporayFolder() + "/seabang/");
+    const std::string tempFolderPath(FindTemporayFolder(seaBangExtraArguments));
 
-    // Use the source file as the 'project name' for error reports.
-    // This is the name of the project that the user will expect to see in errors.
-    const std::string usersProjectName = sourcePathedFile;
+    // We need the source file without the shebang too.
+    const std::string tempSourcefile = tinytools::file::CleanPath(tempFolderPath + (compactTempPath ? "temp." + tinytools::file::GetFileName(pathedSourceFile) : pathedSourceFile) );
 
     // Now we need to create the path to the compiled exec.
     // This is done so we only have to build when something changes.
-    // To ensure no clashes I take the fully pathed source file name
-    // and add /tmp to the start for the temp folder. I also add .exe at the end.
-    const std::string exename = tinytools::file::GetFileName(sourcePathedFile) + ".exe";
-    const std::string pathedExeName = tinytools::file::CleanPath(tempFolderPath + sourceFilePath + exename);
+    // To ensure no clashes I take the fully pathed temporay source file name and add .exe at the end.
+    const std::string pathedExeName = tinytools::file::CleanPath(tempSourcefile + ".exe");
 
-    // We need the source file without the shebang too.
-    const std::string tempSourcefile = tinytools::file::CleanPath(tempFolderPath + sourcePathedFile);
 
     // The temp folder that it's all done in.
     const std::string projectTempFolder = tinytools::file::GetPath(tempSourcefile);
@@ -368,11 +400,16 @@ int main(int argc,char *argv[])
     // Pick the compiler that the user wants or was selected when the tool was built.
     const std::string CompilerToUse = SelectComplier(seaBangExtraArguments);
 
-#ifdef DEBUG_BUILD
-    std::cout << "CWD " << CWD << std::endl;
-    std::cout << "sourcePathedFile " << sourcePathedFile << std::endl;
-    std::cout << "exenameFileExists " << pathedExeName << std::endl;
-#endif
+    // Make sure the new temp source file is not pointing to original source file.
+    if( tinytools::file::AreFilesTheSame(pathedSourceFile,tempSourcefile) )
+    {
+        VLOG("Error in temporay path. Original source file is same as temporay source file.\n    " << originalSourceFile << "\n    " << tempSourcefile);
+        return EXIT_FAILURE;
+    }
+
+    VLOG("Source file " << pathedSourceFile);
+    VLOG("Temp Source file " << tempSourcefile);
+    VLOG("exe file name " << pathedExeName);
 
     // Make sure our temp folder is there.
     tinytools::file::MakeDir(projectTempFolder);
@@ -383,31 +420,44 @@ int main(int argc,char *argv[])
     // May have been forced on.
     if( rebuildNeeded == false )
     {
-        rebuildNeeded = tinytools::file::CompareFileTimes(sourcePathedFile,tempSourcefile);
+        rebuildNeeded = tinytools::file::CompareFileTimes(pathedSourceFile,tempSourcefile);
+        if( rebuildNeeded )
+            VLOG("File times differ, need to rebuild");
+    }
+    else
+    {
+        VLOG("Comandline forcing build");
     }
 
     // Ok, so the source file may not have changed but has any of it's dependencies?
     // This will also check the age of the source file against the age of the executable file.
     // Don't need to do this if we're building anyway.
     if( rebuildNeeded == false )
-    {
+    {   // We don't need to add the paths for the c/c++ includes as we don't care if we can't find the file to check.
+        // They should not be changing. We only care about the files that the source file refers to in it's own folder.
+        // And also the exec that it ultimately builds.
         tinytools::StringVec includePaths;
-        includePaths.push_back("/usr/include");
-        includePaths.push_back("/usr/local/include");
         includePaths.push_back(CWD);
         Dependencies sourceFileDependencies;
-        rebuildNeeded = sourceFileDependencies.RequiresRebuild(sourcePathedFile,pathedExeName,includePaths);
+        rebuildNeeded = sourceFileDependencies.RequiresRebuild(pathedSourceFile,pathedExeName,includePaths);
+        if( rebuildNeeded )
+            VLOG("Dependency check says we need a rebuild")
+        else
+            VLOG("Dependency check says, NO rebuild needed")
+    }
+    else
+    {
+        VLOG("We already know we need a rebuild, skipping dependency check");
     }
 
     if( rebuildNeeded )
     {
-#ifdef DEBUG_BUILD
-        std::cout << "Source file rebuild needed!" << std::endl;
-#endif
+        VLOG("Source file rebuild needed!");
+
         // Ok, we better build it.
         // Copy all lines of the file over excluding the first line that has the shebang.
         std::string line;
-        std::ifstream oldSource(sourcePathedFile);
+        std::ifstream oldSource(pathedSourceFile);
         std::ofstream newSource(tempSourcefile);
         if( newSource )
         {
@@ -415,10 +465,7 @@ int main(int argc,char *argv[])
 
             while( std::getline(oldSource,line) )
             {
-                if( gVerboseLogging )
-                {
-                    std::cout << line << std::endl;
-                }
+                VLOG(line);
 
                 if( line[0] == '#' && line[1] == '!' ) // Is it the shebang? If so remove it.
                 {
@@ -442,15 +489,9 @@ int main(int argc,char *argv[])
             return EXIT_FAILURE;
         }
     }
-    else if( gVerboseLogging )
+    else
     {
-        std::cout << "Skipping rebuild, executable is not out of date." << std::endl;
-    }
-
-    if( chdir(projectTempFolder.c_str()) != 0 )
-    {
-        std::cerr << "Failed to " << projectTempFolder << std::endl;
-        return EXIT_FAILURE;
+        VLOG("Skipping rebuild, executable is not out of date.");
     }
 
     // No point doing the link stage is the source file has not changed!
@@ -507,6 +548,16 @@ int main(int argc,char *argv[])
         args.push_back("-o");
         args.push_back(pathedExeName);
 
+        if( gVerboseLogging )
+        {
+            std::cout << CompilerToUse << " ";
+            for(auto s : args )
+            {
+                std::cout << s << " ";
+            }
+            std::cout << "\n\n";
+        }
+
         std::string compileOutput;
         compliedOK = tinytools::system::ExecuteShellCommand(CompilerToUse,args,compileOutput);
         if( compileOutput.size() > 0 && (compliedOK == false || gVerboseLogging ) )
@@ -524,11 +575,7 @@ int main(int argc,char *argv[])
             std::cerr << "Failed to return to the original run folder " << CWD << std::endl;
             return EXIT_FAILURE;
         }
-
-        if( gVerboseLogging )
-        {
-            std::clog << "Running exec: " << pathedExeName << "\n";
-        }
+        VLOG("Running exec: " << pathedExeName);
 
         // The args sent into shebang for the app, then +1 for the NULL and +1 for the file name as per convention, see https://linux.die.net/man/3/execlp.
         char** TheArgs = new char*[applicationArguments.size() + 2];

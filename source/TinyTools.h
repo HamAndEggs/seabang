@@ -623,6 +623,16 @@ bool CompareFileTimes(const std::string& pSourceFile,const std::string& pDestFil
  */
 std::string LoadFileIntoString(const std::string& pFilename);
 
+/**
+ * @brief Will check that the file names passed in refer to the same file.
+ * Deals with symlinks etc.
+ */
+bool AreFilesTheSame(const char* pFileA,const char* pFileB);
+inline bool AreFilesTheSame(const std::string& pFileA,const std::string& pFileB)
+{
+	return AreFilesTheSame(pFileA.c_str(),pFileB.c_str());
+}
+
 };// namespace file
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
