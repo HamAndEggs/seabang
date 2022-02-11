@@ -1,4 +1,4 @@
-#!/usr/local/bin/seabang --verbose
+#!/usr/local/bin/seabang
 
 #include <iostream>
 
