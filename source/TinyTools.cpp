@@ -31,6 +31,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <poll.h>
+#include <fcntl.h>
 
 #include <vector>
 #include <string>
@@ -1380,6 +1381,19 @@ std::string LoadFileIntoString(const std::string& pFilename)
     std::throw_with_nested(std::runtime_error("Jons file not found " + pFilename));
 
     return "";
+}
+
+bool AreFilesTheSame(const char* pFileA,const char* pFileB)
+{
+    struct stat A;
+    struct stat B;
+    if( stat(pFileA,&A) != -1 && stat(pFileB,&B) != -1 )
+    {
+        return A.st_ino == B.st_ino && A.st_dev == B.st_dev;
+    }
+
+    // Ok to return false here as if one or both can't be opened then safe to assume can't be the same file.
+    return false;
 }
 
 };//namespace file{
