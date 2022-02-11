@@ -266,7 +266,6 @@ The environment varible SEABANG_CXX_COMPILER can be used to change the compiler 
 The environment varible SEABANG_TEMPORAY_FOLDER can be used to change the tempoary folder used by default.
     eg. SEABANG_TEMPORAY_FOLDER=~/tmp ./my-code.cpp
 
-
 Mandatory arguments to long options are mandatory for short options too.
     --seabang-compiler=compiler Allows a specific source file to use a compiler that is not the norm.
               This overides the compiler set with SEABANG_CXX_COMPILER and the default one.
