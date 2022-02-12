@@ -40,14 +40,13 @@ e.g.
 
 If you don't do this seabang will use the compiler that cmake chooses.
 
+After seabang has been built and installed you can still change the compiler used with two options. Either set the environment variable SEABANG_CXX_COMPILER or call seabang in the shebang with the option --seabang-compiler=YOU-COMPILER. eg. --seabang-compiler=gcc
+
 You can also change the default temporary folder seabang uses with the SEABANG_TEMPORARY_FOLDER define.
 e.g.
 ```cmake -DSEABANG_TEMPORARY_FOLDER=~/temp```
     This option is handy if you have a ram disk created to tmpfs.
     Will make the results of the build vanish after boot and also work on read only disk systems, which is handy.
-
-After seabang has been built and installed you can still change the compiler used with two options. Either set the environment variable SEABANG_CXX_COMPILER or call seabang in the shebang with the option --seabang-compiler=YOU-COMPILER. eg. --seabang-compiler=gcc
-
 
 # usage
 
