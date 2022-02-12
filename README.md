@@ -1,5 +1,7 @@
 # seabang
-Allows you to run c++ source file as a script
+Allows you to execute your C/C++ source files. No make files needed. Just add a shebang like the python kids do. :)
+
+<img src="./seabang-example.gif"/>
 
 
 Example...
@@ -20,7 +22,7 @@ int main(int argc, char *argv[])
 ```
 Then make source file executable and your done. You can now run your c/c++ source files.
 
-# instillation
+# installation
 CMake is now used to configure, build and install the application.
 
 ```
