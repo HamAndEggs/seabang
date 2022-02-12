@@ -201,9 +201,9 @@ static std::string FindTemporayFolder(const tinytools::StringVec& seaBangExtraAr
     VLOG("2");
 
     // Next see if the temp folder is defined in an environment varible.
-    if( getenv("SEABANG_TEMPORAY_FOLDER") != nullptr )
+    if( getenv("SEABANG_TEMPORARY_FOLDER") != nullptr )
     {
-        const std::string tempFolder = CorrectTemparyFolderString(getenv("SEABANG_TEMPORAY_FOLDER"));
+        const std::string tempFolder = CorrectTemparyFolderString(getenv("SEABANG_TEMPORARY_FOLDER"));
         if( tempFolder.empty() == false && tinytools::file::DirectoryExists(tempFolder) )
         {
             return tempFolder;
@@ -211,7 +211,7 @@ static std::string FindTemporayFolder(const tinytools::StringVec& seaBangExtraAr
     }
 
     // No reasonble alternative found so use the one that setup in the make file. (which can be configured with cmake)
-    return CorrectTemparyFolderString(SEABANG_TEMPORAY_FOLDER);
+    return CorrectTemparyFolderString(SEABANG_TEMPORARY_FOLDER);
 }
 
 /**
@@ -255,7 +255,7 @@ The options specified here are ones that either affect the operation of seabang 
 Options from the code file being run are passed in as usual, for example hello_world.cpp --help
 seabang does not have any short options so that they do not clash with options for the compiler.
 seabang was built to use the Compiler )" TOSTRING(SEABANG_CXX_COMPILER) R"(
-seaband was built to use the temporay folder )" TOSTRING(SEABANG_TEMPORAY_FOLDER) R"(
+seaband was built to use the temporay folder )" TOSTRING(SEABANG_TEMPORARY_FOLDER) R"(
 Please note, due to the way shebang options work, any argument for seabang and that takes an value
    must not contain a space. For example '--seabang-compiler=compiler' is ok,
    '--seabang-compiler = compiler' will fail.
@@ -263,8 +263,8 @@ Please note, due to the way shebang options work, any argument for seabang and t
 The environment varible SEABANG_CXX_COMPILER can be used to change the compiler used by default.
     eg. SEABANG_CXX_COMPILER=gcc ./my-code.cpp
 
-The environment varible SEABANG_TEMPORAY_FOLDER can be used to change the tempoary folder used by default.
-    eg. SEABANG_TEMPORAY_FOLDER=~/tmp ./my-code.cpp
+The environment varible SEABANG_TEMPORARY_FOLDER can be used to change the tempoary folder used by default.
+    eg. SEABANG_TEMPORARY_FOLDER=~/tmp ./my-code.cpp
 
 Mandatory arguments to long options are mandatory for short options too.
     --seabang-compiler=compiler Allows a specific source file to use a compiler that is not the norm.
@@ -272,7 +272,7 @@ Mandatory arguments to long options are mandatory for short options too.
               Example, --seabang-compiler=gcc
 
     --seabang-temp-path=PATH Allows a specific source file to use a particular temporay folder.
-              This overides the compiler set with SEABANG_TEMPORAY_FOLDER and the default one.
+              This overides the compiler set with SEABANG_TEMPORARY_FOLDER and the default one.
               Example, --seabang-temp-path=./bin
 
     --verbose Enables logging so you can see what seabang is doing.

@@ -1,7 +1,7 @@
 # This make file is used for platforms that do not have cmake.
 # If your platform has cmake please use that instead.
 
-DEFINES = -DSEABANG_TEMPORAY_FOLDER="/tmp/seabang/" -DSEABANG_CXX_COMPILER="gcc"
+DEFINES = -DSEABANG_TEMPORARY_FOLDER="/tmp/seabang/" -DSEABANG_CXX_COMPILER="gcc"
 
 #COMPILE = cc $(DEFINES) -std=c++17 -o0 -g2 -o $@
 COMPILE = cc $(DEFINES) -std=c++17 -o2 -o $@

@@ -40,9 +40,9 @@ e.g.
 
 If you don't do this seabang will use the compiler that cmake chooses.
 
-You can also change the default tempary folder seabang uses with the SEABANG_TEMPORAY_FOLDER define.
+You can also change the default temporary folder seabang uses with the SEABANG_TEMPORARY_FOLDER define.
 e.g.
-```cmake -DSEABANG_TEMPORAY_FOLDER=~/temp```
+```cmake -DSEABANG_TEMPORARY_FOLDER=~/temp```
     This option is handy if you have a ram disk created to tmpfs.
     Will make the results of the build vanish after boot and also work on read only disk systems, which is handy.
 
@@ -64,8 +64,8 @@ Please note, due to the way shebang options work, any argument for seabang and t
 The environment varible SEABANG_CXX_COMPILER can be used to change the compiler used by default.
     eg. SEABANG_CXX_COMPILER=gcc ./my-code.cpp
 
-The environment varible SEABANG_TEMPORAY_FOLDER can be used to change the tempoary folder used by default.
-    eg. SEABANG_TEMPORAY_FOLDER=~/tmp ./my-code.cpp
+The environment varible SEABANG_TEMPORARY_FOLDER can be used to change the temporary folder used by default.
+    eg. SEABANG_TEMPORARY_FOLDER=~/tmp ./my-code.cpp
 
 
 Mandatory arguments to long options are mandatory for short options too.
@@ -74,7 +74,7 @@ Mandatory arguments to long options are mandatory for short options too.
               Example, --seabang-compiler=gcc
 
     --seabang-temp-path=PATH Allows a specific source file to use a particular temporay folder.
-              This overides the compiler set with SEABANG_TEMPORAY_FOLDER and the default one.
+              This overides the compiler set with SEABANG_TEMPORARY_FOLDER and the default one.
               Example, --seabang-temp-path=./bin
 
     --verbose Enables logging so you can see what seabang is doing.
