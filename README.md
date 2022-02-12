@@ -105,4 +105,4 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with seabang.  If not, see <https://www.gnu.org/licenses/>.
 
-<img src="./seabang-example.mpg"/>
+<img src="./seabang-example.gif"/>
