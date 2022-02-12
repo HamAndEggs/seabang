@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
 ```
 Then make source file executable and your done. You can now run your c/c++ source files.
 
-# instillation
+# installation
 CMake is now used to configure, build and install the application.
 
 ```
