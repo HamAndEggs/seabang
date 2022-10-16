@@ -21,7 +21,7 @@ static uint32_t GetLFSR()
     // Shift current pattern right one bit.
     LFSR <<= 1;
 
-    // Set the least significant but. Because of the shift above, LSB in the LFSR should not be zero.
+    // Set the least significant but. Because of the shift above, LSB in the LFSR should be zero.
     // So if the new bit is zero, will stay that way. Means we do not have to clear the bit first.
     LFSR |= LSB;
 
