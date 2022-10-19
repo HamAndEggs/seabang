@@ -309,6 +309,20 @@ along with seabang.  If not, see <https://www.gnu.org/licenses/>.
     std::cout << helpText << "\n";
 }
 
+static std::string ChooseTempSourceFilename(const std::string &tempFolderPath,bool compactTempPath,const std::string &pathedSourceFile)
+{
+    std::string pathedFilename = tinytools::file::CleanPath(tempFolderPath + (compactTempPath ? "temp." + tinytools::file::GetFileName(pathedSourceFile) : pathedSourceFile) );
+
+    // If the file does not have an extension, assume cpp file so add one.
+    // This allows source files to look like applications.
+    const std::string ext = tinytools::file::GetExtension(pathedFilename);
+    if( ext.size() == 0  )
+    {
+        pathedFilename += ".cpp";
+    }
+    return pathedFilename;
+}
+
 /**
  * @brief Our entrypoint called by the OS
  */
@@ -386,7 +400,7 @@ int main(int argc,char *argv[])
     const std::string tempFolderPath(FindTemporayFolder(seaBangExtraArguments));
 
     // We need the source file without the shebang too.
-    const std::string tempSourcefile = tinytools::file::CleanPath(tempFolderPath + (compactTempPath ? "temp." + tinytools::file::GetFileName(pathedSourceFile) : pathedSourceFile) );
+    const std::string tempSourcefile = ChooseTempSourceFilename(tempFolderPath,compactTempPath,pathedSourceFile);
 
     // Now we need to create the path to the compiled exec.
     // This is done so we only have to build when something changes.
