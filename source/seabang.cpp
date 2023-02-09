@@ -261,6 +261,7 @@ static void LogArguments(const std::vector<std::string>& pArgs,const std::string
 
 static std::string CorrectTemparyFolderString(std::string pFolder)
 {
+    VLOG("CorrectTemparyFolderString(" << pFolder << ")")
     if( pFolder.back() != '/' )
         pFolder += '/';
 
@@ -278,6 +279,7 @@ static std::string CorrectTemparyFolderString(std::string pFolder)
 // std::filesystem::path::compare just checks the string, does not check the file the path points too.
 static bool AreFilesTheSame(const std::filesystem::path pFileA,const std::filesystem::path pFileB)
 {
+    VLOG("Comparing fileA " << pFileA << "with file B " << pFileB);
     struct stat A;
     struct stat B;
     if( stat(pFileA.string().c_str(),&A) != -1 && stat(pFileB.string().c_str(),&B) != -1 )
@@ -309,33 +311,12 @@ static std::filesystem::path FindTemporayFolder(const std::vector<std::string>& 
             }
         }
 
-        // No reasonble alternative found so use the one that setup in the make file. (which can be configured with cmake)
+        VLOG("No reasonble tempory folder alternative found so use the one that setup in the make file. (which can be configured with cmake)");
         return CorrectTemparyFolderString(SEABANG_TEMPORARY_FOLDER);
     }
 
     VLOG("Compiler overwritten to use " << cmdTempFolder);
     return CorrectTemparyFolderString(cmdTempFolder);
-}
-
-bool CompareFileTimes(const std::filesystem::path& pSourceFile,const std::filesystem::path& pDestFile)
-{
-    struct stat Stats;
-    if( stat(pDestFile.c_str(), &Stats) == 0 && S_ISREG(Stats.st_mode) )
-    {
-        timespec dstFileTime = Stats.st_mtim;
-
-        if( stat(pSourceFile.c_str(), &Stats) == 0 && S_ISREG(Stats.st_mode) )
-        {
-            timespec srcFileTime = Stats.st_mtim;
-
-            if(srcFileTime.tv_sec == dstFileTime.tv_sec)
-                return srcFileTime.tv_nsec > dstFileTime.tv_nsec;
-
-            return srcFileTime.tv_sec > dstFileTime.tv_sec;
-        }
-    }
-
-    return true;
 }
 
 /**
@@ -435,12 +416,21 @@ along with seabang.  If not, see <https://www.gnu.org/licenses/>.
 
 static std::filesystem::path ChooseTempSourceFilename(const std::filesystem::path &tempFolderPath,bool compactTempPath,const std::filesystem::path &pathedSourceFile)
 {
+    VLOG("tempFolderPath == " << tempFolderPath);
+    VLOG("compactTempPath == " << compactTempPath);
+    VLOG("pathedSourceFile == " << pathedSourceFile);
     std::filesystem::path pathedFilename = tempFolderPath;
+    VLOG("pathedFilename == " << pathedFilename);
     if( compactTempPath )
     {
-        pathedFilename /= "temp.";
+        pathedFilename /= ".temp";
+        pathedFilename /= pathedSourceFile.filename();
     }
-    pathedFilename /= pathedSourceFile;
+    else
+    {
+        pathedFilename += pathedSourceFile;
+    }
+    VLOG("pathedFilename == " << pathedFilename);
 
     // If the file does not have an extension, assume cpp file so add one.
     // This allows source files to look like applications.
@@ -448,6 +438,7 @@ static std::filesystem::path ChooseTempSourceFilename(const std::filesystem::pat
     {
         pathedFilename /= ".cpp";
     }
+    VLOG("pathedFilename == " << pathedFilename);
     return pathedFilename;
 }
 
@@ -558,13 +549,16 @@ int main(int argc,char *argv[])
 
     std::vector<std::string> libraryFiles;
 
-    // First see if the source file that does not have the shebang in it is there.
+    // Check the temp source that is compiled is there and that it's date is not older than the one we're executing.
+    // Will also 
     // May have been forced on.
     if( rebuildNeeded == false )
     {
-        rebuildNeeded = CompareFileTimes(pathedSourceFile,tempSourcefile);
-        if( rebuildNeeded )
+        if( std::filesystem::exists(tempSourcefile) == false || std::filesystem::last_write_time(tempSourcefile) < std::filesystem::last_write_time(pathedSourceFile) )
+        {
+            rebuildNeeded = true;
             VLOG("File times differ, need to rebuild");
+        }
     }
     else
     {
@@ -641,7 +635,7 @@ int main(int argc,char *argv[])
     if( rebuildNeeded )
     {
         // Make source output is deleted so can run if there was a build error.
-        std::remove(pathedExeName.c_str());
+        std::filesystem::remove(pathedExeName);
 
         // First compile the new source file that is in the temp folder, this has the she bang removed, so it'll compile.
         std::vector<std::string> args;
@@ -665,7 +659,7 @@ int main(int argc,char *argv[])
         // Need to add the current working dir as a search path.
         // This is because the file maybe including a a file from a local path and not the system include folder.
         // E.g #include "../somecode.cpp"
-        args.push_back("-I" / CWD);
+        args.push_back("-I" + CWD.string());
 
         // For now we'll assume c++17, later add option to allow them to define this. Will always default to c++17
         args.push_back("-std=c++17");
