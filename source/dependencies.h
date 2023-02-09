@@ -23,29 +23,33 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <functional>
-#include <unordered_map>
-
-#include "TinyTools.h"
+#include <map>
+#include <filesystem>
+#include <vector>
+#include <set>
 
 class Dependencies
 {
 public:
-	Dependencies() = default;
+	typedef std::vector<std::filesystem::path> PathVec;
+	typedef std::set<std::filesystem::path> PathSet;
+
+	Dependencies();
 
 	// Returns true if the object file date is older than the source file or any of it's dependencies.
-	bool RequiresRebuild(const std::string& pSourceFile,const std::string& pObjectFile,const tinytools::StringVec& pIncludePaths);
+	bool RequiresRebuild(const std::filesystem::path& pSourceFile,const std::filesystem::path& pObjectFile,const Dependencies::PathVec& pIncludePaths);
 
 private:
-	bool CheckSourceDependencies(const std::string& pSourceFile,const timespec& pObjFileTime,const tinytools::StringVec& pIncludePaths);
-	bool GetFileTime(const std::string& pFilename,timespec& rFileTime);
-	bool FileYoungerThanObjectFile(const std::string& pFilename,const timespec& pObjFileTime);
+	bool CheckSourceDependencies(const std::filesystem::path& pSourceFile,const timespec& pObjFileTime,const PathVec& pIncludePaths);
+	bool GetFileTime(const std::filesystem::path& pFilename,timespec& rFileTime);
+	bool FileYoungerThanObjectFile(const std::filesystem::path& pFilename,const timespec& pObjFileTime);
 	bool FileYoungerThanObjectFile(const timespec& pOtherTime,const timespec& pObjFileTime)const;
-	bool GetIncludesFromFile(const std::string& pFilename,const tinytools::StringVec& pIncludePaths,tinytools::StringSet& rIncludes);
+	bool GetIncludesFromFile(const std::filesystem::path& pFilename,const PathVec& pIncludePaths,PathSet& rIncludes);
 
 	typedef struct stat FileStats;
-	typedef std::unordered_map<std::string,timespec> FileTimeMap;
-	typedef std::unordered_map<std::string,tinytools::StringSet> DependencyMap;
-	typedef std::unordered_map<std::string,bool> FileState;	// True if it is out of date and thus the source file needs building, false it is not. If not found we have not checked it yet.
+	typedef std::map<std::filesystem::path,timespec> FileTimeMap;
+	typedef std::map<std::filesystem::path,Dependencies::PathSet> DependencyMap;
+	typedef std::map<std::filesystem::path,bool> FileState;	// True if it is out of date and thus the source file needs building, false it is not. If not found we have not checked it yet.
 
 
 	DependencyMap mDependencies;

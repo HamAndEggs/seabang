@@ -16,18 +16,23 @@
  *  along with seabang.  If not, see <https://www.gnu.org/licenses/>.
  * 
  */
+#include "execute_command.h"
+#include "dependencies.h"
 
 #include <limits.h>
+#include <string.h>
+#include <unistd.h>
+#include <assert.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
 #include <string>
 #include <iostream>
 #include <fstream>
-#include <unistd.h>
 #include <vector>
 #include <memory>
-#include <assert.h>
-
-#include "TinyTools.h"
-#include "dependencies.h"
+#include <filesystem>
+#include <algorithm>
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
@@ -35,6 +40,38 @@
 static bool gVerboseLogging = false;
 
 #define VLOG(__THING_TO_LOG) {if( gVerboseLogging ){std::clog << __THING_TO_LOG << "\n";}}
+
+static std::vector<std::string> SplitString(const std::string& pString, const char* pSeperator)
+{
+    std::vector<std::string> res;
+    for (size_t p = 0, q = 0; p != pString.npos; p = q)
+	{
+		const std::string part(pString.substr(p + (p != 0), (q = pString.find(pSeperator, p + 1)) - p - (p != 0)));
+		if( part.size() > 0 )
+		{
+	        res.push_back(part);
+		}
+	}
+    return res;
+}
+
+inline bool SearchString(const std::vector<std::string>& pVec,const std::string& pLost)
+{
+   return std::find(pVec.begin(),pVec.end(),pLost) != pVec.end();
+}
+
+static bool CompareNoCase(const std::string& a, const std::string& b)
+{
+    // Early out, if not same length, not the same.
+    if( a.size() != b.size() )
+        return false;
+
+    return std::equal(a.begin(), a.end(),
+                      b.begin(), b.end(),
+                      [](char a, char b) {
+                          return tolower(a) == tolower(b);
+                      });
+}
 
 /**
  * @brief Get the source file from the arguments
@@ -45,7 +82,7 @@ static const char* GetSourceFileFromArguments(int argc,char *argv[])
         return argv[1];
 
     // If it's a file, assume seabang not passed with any argument.
-    if( tinytools::file::FileExists(argv[1]) )
+    if( std::filesystem::exists(argv[1]) )
         return argv[1];
 
     // Assume if argv[1] is not a file then they must be arguments and so argv[2] is our file.
@@ -55,20 +92,20 @@ static const char* GetSourceFileFromArguments(int argc,char *argv[])
 /**
  * @brief Get the Arguments that are for use in seabang.
  */
-static const tinytools::StringVec GetArgumentsForSeabang(int argc,char *argv[])
+static std::vector<std::string> GetArgumentsForSeabang(int argc,char *argv[])
 {
     // If no arguments then pass back empty vector
     if( argc > 2 )
     {
         // If it's a file, assume seabang not passed with any argument.
-        if( tinytools::file::FileExists(argv[1]) == false )
+        if( std::filesystem::exists(argv[1]) == false )
         {
             // Assume if argv[1] is not a file then they must be arguments and so argv[2] is our file.
-            return tinytools::string::SplitString(argv[1]," ");
+            return SplitString(argv[1]," ");
         }
     }
 
-    return tinytools::StringVec();
+    return std::vector<std::string>();
 }
 
 /**
@@ -76,11 +113,11 @@ static const tinytools::StringVec GetArgumentsForSeabang(int argc,char *argv[])
  * E.G Will return FRED for --name=FRED, also deals with spaces.
  * Has to assume if = is found after argument that the next arg is the value.
  */
-static const std::string GetArgumentValue(const tinytools::StringVec& args, const std::string theArg)
+static std::string GetArgumentValue(const std::vector<std::string>& args, const std::string theArg)
 {
     for( auto s : args )
     {
-        if( tinytools::string::CompareNoCase(s,theArg) )
+        if( CompareNoCase(s,theArg) )
         {
             // Does the arg contain an = sign?
             const size_t equality = s.find('=');
@@ -99,14 +136,14 @@ static const std::string GetArgumentValue(const tinytools::StringVec& args, cons
  * These arguments are then passed to the compiled exec.
  * So you can do things like ./wait.cpp -n=3
  */
-static const tinytools::StringVec GetArgumentsForApplication(int argc,char *argv[])
+static const std::vector<std::string> GetArgumentsForApplication(int argc,char *argv[])
 {
-    tinytools::StringVec args;
+    std::vector<std::string> args;
     // If no arguments then pass back empty vector
     if( argc > 2 )
     {
         // If it's a file, assume seabang not passed with any argument.
-        if( tinytools::file::FileExists(argv[1]) )
+        if( std::filesystem::exists(argv[1]) )
         {// Application arguments are as expected, one after another in the argument list, not one string.
             for(int n = 2 ; n < argc ; n++ )
             {
@@ -133,10 +170,10 @@ static const tinytools::StringVec GetArgumentsForApplication(int argc,char *argv
 /**
  * @brief Get the single dashed arguments, passed onto the compiler
  */
-static const tinytools::StringVec GetArgumentsForCompiler(const tinytools::StringVec& seaBangExtraArguments)
+static const std::vector<std::string> GetArgumentsForCompiler(const std::vector<std::string>& seaBangExtraArguments)
 {
     // Scan the arguments for seabang and select which are know to be needed for the compiler.
-    tinytools::StringVec compilerArgs;
+    std::vector<std::string> compilerArgs;
 
     for( auto arg : seaBangExtraArguments )
     {
@@ -152,7 +189,7 @@ static const tinytools::StringVec GetArgumentsForCompiler(const tinytools::Strin
 /**
  * @brief When --verbose is used, this function is used to output the args to the log.
  */
-static void LogArguments(const tinytools::StringVec& pArgs,const std::string& pWho)
+static void LogArguments(const std::vector<std::string>& pArgs,const std::string& pWho)
 {
     if( pArgs.size() == 0 )
     {
@@ -170,6 +207,7 @@ static void LogArguments(const tinytools::StringVec& pArgs,const std::string& pW
 
 static std::string CorrectTemparyFolderString(std::string pFolder)
 {
+    VLOG("CorrectTemparyFolderString(" << pFolder << ")")
     if( pFolder.back() != '/' )
         pFolder += '/';
 
@@ -188,36 +226,34 @@ static std::string CorrectTemparyFolderString(std::string pFolder)
  * @brief Allows the user to alter the temp folder used.
  * The order is important and defined in the documentation.
  */
-static std::string FindTemporayFolder(const tinytools::StringVec& seaBangExtraArguments)
+static std::filesystem::path FindTemporayFolder(const std::vector<std::string>& seaBangExtraArguments)
 {
-    VLOG("1");
     // First see if seabang was invoked with the temporay path overide.
-    const std::string cmdTempFolder = GetArgumentValue(seaBangExtraArguments,"--seabang-temp-path");
-    if( cmdTempFolder.size() > 0 )
+    const std::filesystem::path cmdTempFolder = GetArgumentValue(seaBangExtraArguments,"--seabang-temp-path");
+    if( cmdTempFolder.empty() )
     {
-        VLOG("Compiler overwritten to use " << cmdTempFolder);
-        return CorrectTemparyFolderString(cmdTempFolder);
-    }
-    VLOG("2");
-
-    // Next see if the temp folder is defined in an environment varible.
-    if( getenv("SEABANG_TEMPORARY_FOLDER") != nullptr )
-    {
-        const std::string tempFolder = CorrectTemparyFolderString(getenv("SEABANG_TEMPORARY_FOLDER"));
-        if( tempFolder.empty() == false && tinytools::file::DirectoryExists(tempFolder) )
+        // Next see if the temp folder is defined in an environment varible.
+        if( getenv("SEABANG_TEMPORARY_FOLDER") != nullptr )
         {
-            return tempFolder;
+            const std::filesystem::path tempFolder = CorrectTemparyFolderString(getenv("SEABANG_TEMPORARY_FOLDER"));
+            if( tempFolder.empty() == false && std::filesystem::is_directory(tempFolder) && std::filesystem::exists(tempFolder) )
+            {
+                return tempFolder;
+            }
         }
+
+        VLOG("No reasonble tempory folder alternative found so use the one that setup in the make file. (which can be configured with cmake)");
+        return CorrectTemparyFolderString(SEABANG_TEMPORARY_FOLDER);
     }
 
-    // No reasonble alternative found so use the one that setup in the make file. (which can be configured with cmake)
-    return CorrectTemparyFolderString(SEABANG_TEMPORARY_FOLDER);
+    VLOG("Compiler overwritten to use " << cmdTempFolder);
+    return CorrectTemparyFolderString(cmdTempFolder);
 }
 
 /**
  * @brief Selects the compiler that we should used.
  */
-const std::string SelectComplier(const tinytools::StringVec& seaBangExtraArguments)
+static const std::string SelectComplier(const std::vector<std::string>& seaBangExtraArguments)
 {
     // The order is important and defined in the documentation.
     // First see if seabang was invoked with the complier overide.
@@ -240,6 +276,29 @@ const std::string SelectComplier(const tinytools::StringVec& seaBangExtraArgumen
     VLOG("Using default compiler " << SEABANG_CXX_COMPILER);
 
     return SEABANG_CXX_COMPILER;
+}
+
+static std::filesystem::path ChooseTempSourceFilename(const std::filesystem::path &tempFolderPath,bool compactTempPath,const std::filesystem::path &pathedSourceFile)
+{
+    std::filesystem::path pathedFilename = tempFolderPath;
+    if( compactTempPath )
+    {
+        pathedFilename /= ".temp";
+        pathedFilename /= pathedSourceFile.filename();
+    }
+    else
+    {
+        pathedFilename += pathedSourceFile;
+    }
+
+    // If the file does not have an extension, assume cpp file so add one.
+    // This allows source files to look like applications.
+    if( pathedFilename.has_extension() == false )
+    {
+        pathedFilename += ".cpp";
+    }
+
+    return pathedFilename;
 }
 
 /**
@@ -309,40 +368,15 @@ along with seabang.  If not, see <https://www.gnu.org/licenses/>.
     std::cout << helpText << "\n";
 }
 
-static std::string ChooseTempSourceFilename(const std::string &tempFolderPath,bool compactTempPath,const std::string &pathedSourceFile)
-{
-    std::string pathedFilename = tinytools::file::CleanPath(tempFolderPath + (compactTempPath ? "temp." + tinytools::file::GetFileName(pathedSourceFile) : pathedSourceFile) );
-
-    // If the file does not have an extension, assume cpp file so add one.
-    // This allows source files to look like applications.
-    const std::string ext = tinytools::file::GetExtension(pathedFilename);
-    if( ext.size() == 0  )
-    {
-        pathedFilename += ".cpp";
-    }
-    return pathedFilename;
-}
-
 /**
  * @brief Our entrypoint called by the OS
  */
 int main(int argc,char *argv[])
 {
-    assert(tinytools::string::CompareNoCase("onetwo","one",3) == true);
-    assert(tinytools::string::CompareNoCase("onetwo","ONE",3) == true);
-    assert(tinytools::string::CompareNoCase("OneTwo","one",3) == true);
-    assert(tinytools::string::CompareNoCase("onetwo","oneX",3) == true);
-    assert(tinytools::string::CompareNoCase("OnE","oNe") == true);
-    assert(tinytools::string::CompareNoCase("onetwo","one") == true);	// Does it start with 'one'
-    assert(tinytools::string::CompareNoCase("onetwo","onetwothree",6) == true);
-    assert(tinytools::string::CompareNoCase("onetwo","onetwothreeX",6) == true);
-    assert(tinytools::string::CompareNoCase("onetwo","onetwothree") == false); // sorry, but we're searching for more than there is... false...
-    assert(tinytools::string::CompareNoCase("onetwo","onetwo") == true);
-
     // See if they are looking for seabang help.
     if( argc == 2 )
     {
-        if( tinytools::string::CompareNoCase(argv[1],"--help") )
+        if( CompareNoCase(argv[1],"--help") )
         {
             DisplayHelp();
             return EXIT_SUCCESS;
@@ -365,16 +399,16 @@ int main(int argc,char *argv[])
     // Then the rest of the arguments are as we expect, one argv[n] per argument.
     // And so we need to look if argv[1] is a file or not. If it is assume no args passed to the shebang, if it is not assume it's args for the seabang exec.
     const std::string originalSourceFile = GetSourceFileFromArguments(argc,argv);
-    const tinytools::StringVec seaBangExtraArguments = GetArgumentsForSeabang(argc,argv);
-    const tinytools::StringVec applicationArguments = GetArgumentsForApplication(argc,argv);
-    const tinytools::StringVec compilerExtraArguments = GetArgumentsForCompiler(seaBangExtraArguments);
+    const std::vector<std::string> seaBangExtraArguments = GetArgumentsForSeabang(argc,argv);
+    const std::vector<std::string> applicationArguments = GetArgumentsForApplication(argc,argv);
+    const std::vector<std::string> compilerExtraArguments = GetArgumentsForCompiler(seaBangExtraArguments);
 
     // Lets see if they want verbose logging.
     // All seabang arguments are in long form so not to get mixed up with arguments for the compiler.
-    gVerboseLogging = tinytools::string::Search(seaBangExtraArguments,"--verbose");
-    bool rebuildNeeded = tinytools::string::Search(seaBangExtraArguments,"--rebuild");
-    const bool debugBuild = tinytools::string::Search(seaBangExtraArguments,"--debug");
-    const bool compactTempPath = tinytools::string::Search(seaBangExtraArguments,"--compact-path");
+    gVerboseLogging = SearchString(seaBangExtraArguments,"--verbose");
+    bool rebuildNeeded = SearchString(seaBangExtraArguments,"--rebuild");
+    const bool debugBuild = SearchString(seaBangExtraArguments,"--debug");
+    const bool compactTempPath = SearchString(seaBangExtraArguments,"--compact-path");
 
     if( gVerboseLogging )
     {
@@ -383,39 +417,39 @@ int main(int argc,char *argv[])
         LogArguments(compilerExtraArguments,"compiler");
     }
 
-    const std::string CWD = tinytools::file::GetCurrentWorkingDirectory() + "/";
-    const std::string pathedSourceFile = tinytools::file::CleanPath(CWD + originalSourceFile);
+    const std::filesystem::path CWD = std::filesystem::current_path();
+    const std::filesystem::path pathedSourceFile = CWD / originalSourceFile;
 
     // Sanity check, is file there? This is done to check for errors in the logic of the code above. 
-    if( tinytools::file::FileExists(pathedSourceFile) == false )
+    if( std::filesystem::exists(pathedSourceFile) == false )
     {
         VLOG("The source file we are trying to run is not found at: " << pathedSourceFile);
         return EXIT_FAILURE;
     }
 
     // Get the path to the source file, need this as we need to insert the project configuration name so we can find it.
-    const std::string sourceFilePath = tinytools::file::GetPath(pathedSourceFile);
+    const std::filesystem::path sourceFilePath = std::filesystem::path(pathedSourceFile).remove_filename();
 
     // This is the temp folder path we use to cache build results.
-    const std::string tempFolderPath(FindTemporayFolder(seaBangExtraArguments));
+    const std::filesystem::path tempFolderPath(FindTemporayFolder(seaBangExtraArguments));
 
     // We need the source file without the shebang too.
-    const std::string tempSourcefile = ChooseTempSourceFilename(tempFolderPath,compactTempPath,pathedSourceFile);
+    const std::filesystem::path tempSourcefile = ChooseTempSourceFilename(tempFolderPath,compactTempPath,pathedSourceFile);
 
     // Now we need to create the path to the compiled exec.
     // This is done so we only have to build when something changes.
     // To ensure no clashes I take the fully pathed temporay source file name and add .exe at the end.
-    const std::string pathedExeName = tinytools::file::CleanPath(tempSourcefile + ".exe");
+    const std::filesystem::path pathedExeName = (std::filesystem::path(tempSourcefile) += ".exe");
 
 
     // The temp folder that it's all done in.
-    const std::string projectTempFolder = tinytools::file::GetPath(tempSourcefile);
+    const std::filesystem::path projectTempFolder = std::filesystem::path(tempSourcefile).remove_filename();
 
     // Pick the compiler that the user wants or was selected when the tool was built.
     const std::string CompilerToUse = SelectComplier(seaBangExtraArguments);
 
     // Make sure the new temp source file is not pointing to original source file.
-    if( tinytools::file::AreFilesTheSame(pathedSourceFile,tempSourcefile) )
+    if( std::filesystem::equivalent(pathedSourceFile,tempSourcefile) )
     {
         VLOG("Error in temporay path. Original source file is same as temporay source file.\n    " << originalSourceFile << "\n    " << tempSourcefile);
         return EXIT_FAILURE;
@@ -426,17 +460,20 @@ int main(int argc,char *argv[])
     VLOG("exe file name " << pathedExeName);
 
     // Make sure our temp folder is there.
-    tinytools::file::MakeDir(projectTempFolder);
+    std::filesystem::create_directories(projectTempFolder);
 
-    tinytools::StringVec libraryFiles;
+    std::vector<std::string> libraryFiles;
 
-    // First see if the source file that does not have the shebang in it is there.
+    // Check the temp source that is compiled is there and that it's date is not older than the one we're executing.
+    // Will also 
     // May have been forced on.
     if( rebuildNeeded == false )
     {
-        rebuildNeeded = tinytools::file::CompareFileTimes(pathedSourceFile,tempSourcefile);
-        if( rebuildNeeded )
+        if( std::filesystem::exists(tempSourcefile) == false || std::filesystem::last_write_time(tempSourcefile) < std::filesystem::last_write_time(pathedSourceFile) )
+        {
+            rebuildNeeded = true;
             VLOG("File times differ, need to rebuild");
+        }
     }
     else
     {
@@ -444,13 +481,14 @@ int main(int argc,char *argv[])
     }
 
     // Ok, so the source file may not have changed but has any of it's dependencies?
+    // We do this as the exec maybe including a header in the same folder or from else where that maybe changing.
     // This will also check the age of the source file against the age of the executable file.
     // Don't need to do this if we're building anyway.
     if( rebuildNeeded == false )
     {   // We don't need to add the paths for the c/c++ includes as we don't care if we can't find the file to check.
         // They should not be changing. We only care about the files that the source file refers to in it's own folder.
         // And also the exec that it ultimately builds.
-        tinytools::StringVec includePaths;
+        Dependencies::PathVec includePaths;
         includePaths.push_back(CWD);
         Dependencies sourceFileDependencies;
         rebuildNeeded = sourceFileDependencies.RequiresRebuild(pathedSourceFile,pathedExeName,includePaths);
@@ -513,10 +551,10 @@ int main(int argc,char *argv[])
     if( rebuildNeeded )
     {
         // Make source output is deleted so can run if there was a build error.
-        std::remove(pathedExeName.c_str());
+        std::filesystem::remove(pathedExeName);
 
         // First compile the new source file that is in the temp folder, this has the she bang removed, so it'll compile.
-        tinytools::StringVec args;
+        std::vector<std::string> args;
 
         args.push_back(tempSourcefile);
 
@@ -537,7 +575,7 @@ int main(int argc,char *argv[])
         // Need to add the current working dir as a search path.
         // This is because the file maybe including a a file from a local path and not the system include folder.
         // E.g #include "../somecode.cpp"
-        args.push_back("-I" + CWD);
+        args.push_back("-I" + CWD.string());
 
         // For now we'll assume c++17, later add option to allow them to define this. Will always default to c++17
         args.push_back("-std=c++17");
@@ -573,7 +611,7 @@ int main(int argc,char *argv[])
         }
 
         std::string compileOutput;
-        compliedOK = tinytools::system::ExecuteShellCommand(CompilerToUse,args,compileOutput);
+        compliedOK = ExecuteShellCommand(CompilerToUse,args,compileOutput);
         if( compileOutput.size() > 0 && (compliedOK == false || gVerboseLogging ) )
         {
             std::clog << compileOutput << "\n";
@@ -581,7 +619,7 @@ int main(int argc,char *argv[])
     }
 
     // See if we have the output file, if so run it!
-    if( compliedOK && tinytools::file::FileExists(pathedExeName) )
+    if( compliedOK && std::filesystem::exists(pathedExeName) )
     {// I will not be using ExecuteShellCommand as I need to replace this exec to allow the input and output to be taken over.
 
         if( chdir(CWD.c_str()) != 0 )
@@ -591,21 +629,15 @@ int main(int argc,char *argv[])
         }
         VLOG("Running exec: " << pathedExeName);
 
-        // The args sent into shebang for the app, then +1 for the NULL and +1 for the file name as per convention, see https://linux.die.net/man/3/execlp.
-        char** TheArgs = new char*[applicationArguments.size() + 2];
-        int c = 0;
-        TheArgs[c++] = tinytools::string::CopyString(pathedExeName);
+        std::string cmd = pathedExeName.string();
         for( auto arg : applicationArguments )
         {
-            TheArgs[c++] = tinytools::string::CopyString(arg);
+            cmd += " ";
+            cmd += arg;
         }
-        TheArgs[c++] = NULL;
-
-        // This replaces the current process so no need to clean up the memory leaks before here. ;)
-        execvp(TheArgs[0], TheArgs);
-
-        std::cerr << "ExecuteShellCommand execl() failure!" << std::endl << "This print is after execl() and should not have been executed if execl were successful!" << std::endl;
-        _exit(1);
+        // The docs say "An explicit flush of std::cout is also necessary before a call to std::system, if the spawned process performs any screen I/O."
+        std::cout << std::flush;
+        return std::system(cmd.c_str());
 
     }
     else
@@ -619,5 +651,5 @@ int main(int argc,char *argv[])
         std::cerr << "Failed to return to the original run folder " << CWD << std::endl;
     }
 
-    return EXIT_FAILURE;
+    return EXIT_SUCCESS;
 }

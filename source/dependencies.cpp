@@ -21,11 +21,16 @@
 
 #include "dependencies.h"
 
-bool Dependencies::RequiresRebuild(const std::string& pSourceFile,const std::string& pObjectFile,const tinytools::StringVec& pIncludePaths)
+Dependencies::Dependencies()
+{
+
+}
+
+bool Dependencies::RequiresRebuild(const std::filesystem::path& pSourceFile,const std::filesystem::path& pObjectFile,const PathVec& pIncludePaths)
 {
 	// Add the path of the source file we're checking to the include paths. Has to be done in a way so that we don't pollute the passed in paths. Hence the copy and the passing in of the params as const. Stops bugs!!!!
-	tinytools::StringVec IncludePaths = pIncludePaths;
-	const std::string srcPath = tinytools::file::GetPath(pSourceFile);
+	PathVec IncludePaths = pIncludePaths;
+	const std::string srcPath = std::filesystem::path(pSourceFile).remove_filename();
 	if( !srcPath.empty() )
 		IncludePaths.push_back(srcPath);
 
@@ -50,7 +55,7 @@ bool Dependencies::RequiresRebuild(const std::string& pSourceFile,const std::str
 	return true;
 }
 
-bool Dependencies::CheckSourceDependencies(const std::string& pSourceFile,const timespec& pObjFileTime,const tinytools::StringVec& pIncludePaths)
+bool Dependencies::CheckSourceDependencies(const std::filesystem::path& pSourceFile,const timespec& pObjFileTime,const PathVec& pIncludePaths)
 {
 	// Check that we have not already checked this file.
 	auto found = mFileDependencyState.find(pSourceFile);
@@ -66,7 +71,7 @@ bool Dependencies::CheckSourceDependencies(const std::string& pSourceFile,const 
 	}
 
 	// Get all the includes from the file.
-	tinytools::StringSet Includes;
+	PathSet Includes;
 	if( GetIncludesFromFile(pSourceFile,pIncludePaths,Includes) )
 	{
 		// Now check their dependencies.....
@@ -87,7 +92,7 @@ bool Dependencies::CheckSourceDependencies(const std::string& pSourceFile,const 
 	return false;
 }
 
-bool Dependencies::GetFileTime(const std::string& pFilename,timespec& rFileTime)
+bool Dependencies::GetFileTime(const std::filesystem::path& pFilename,timespec& rFileTime)
 {// I cache file times and the headers found in a file. Gives a very nice speed up.
 	FileTimeMap::iterator found = mFileTimes.find(pFilename);
 	if( found != mFileTimes.end() )
@@ -107,7 +112,7 @@ bool Dependencies::GetFileTime(const std::string& pFilename,timespec& rFileTime)
 	return false;
 }
 
-bool Dependencies::FileYoungerThanObjectFile(const std::string& pFilename,const timespec& pObjFileTime)
+bool Dependencies::FileYoungerThanObjectFile(const std::filesystem::path& pFilename,const timespec& pObjFileTime)
 {
 	timespec OtherTime;
 	// Get the dependency file's info, if this fails then the file is not there.
@@ -129,9 +134,9 @@ bool Dependencies::FileYoungerThanObjectFile(const timespec& pOtherTime,const ti
 		return pOtherTime.tv_sec > pObjFileTime.tv_sec;
 }
 
-bool Dependencies::GetIncludesFromFile(const std::string& pFilename,const tinytools::StringVec& pIncludePaths,tinytools::StringSet& rIncludes)
+bool Dependencies::GetIncludesFromFile(const std::filesystem::path& pFilename,const PathVec& pIncludePaths,PathSet& rIncludes)
 {
-	assert( pFilename.size() > 0 );
+	assert( pFilename.empty() == false );
 	assert( pIncludePaths.size() > 0 );
 	assert( rIncludes.size() < 1000  );
 
@@ -188,7 +193,7 @@ bool Dependencies::GetIncludesFromFile(const std::string& pFilename,const tinyto
 								for(const std::string& path : pIncludePaths )
 								{
 									std::string PathedInclude = path + includefile;
-									if( tinytools::file::FileExists(PathedInclude) )
+									if( std::filesystem::exists(PathedInclude) )
 									{
 										rIncludes.insert(PathedInclude);
 										break;

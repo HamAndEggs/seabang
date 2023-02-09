@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 
     std::thread([]()
     {
-        int i = 0;
+        int64_t i = 0;
         for( int n = 0 ; n < 10000 ; n++ )
         {
             i += rand();
@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
         std::clog << i << "\n";
     }).join();
 
-     std::cout << "And done\n";
+    std::cout << "And done\n";
 
 // And quit\n";
     return EXIT_SUCCESS;

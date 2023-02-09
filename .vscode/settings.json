@@ -59,7 +59,8 @@
         "typeinfo": "cpp",
         "complex": "cpp",
         "numbers": "cpp",
-        "semaphore": "cpp"
+        "semaphore": "cpp",
+        "arguments-test": "cpp"
     },
     "cmake.configureOnOpen": false
 }
