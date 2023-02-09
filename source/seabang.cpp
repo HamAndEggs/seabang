@@ -41,24 +41,6 @@ static bool gVerboseLogging = false;
 
 #define VLOG(__THING_TO_LOG) {if( gVerboseLogging ){std::clog << __THING_TO_LOG << "\n";}}
 
-static char* CopyString(const char* pString, size_t pMaxLength)
-{
-    char *newString = nullptr;
-    if( pString != nullptr && pString[0] != 0 )
-    {
-        size_t len = strnlen(pString,pMaxLength);
-        if( len > 0 )
-        {
-            newString = new char[len + 1];
-            strncpy(newString,pString,len);
-            newString[len] = 0;
-        }
-    }
-
-    return newString;
-}
-inline char* CopyString(const std::string& pString){return CopyString(pString.c_str(),pString.size());}
-
 static std::vector<std::string> SplitString(const std::string& pString, const char* pSeperator)
 {
     std::vector<std::string> res;
@@ -416,11 +398,7 @@ along with seabang.  If not, see <https://www.gnu.org/licenses/>.
 
 static std::filesystem::path ChooseTempSourceFilename(const std::filesystem::path &tempFolderPath,bool compactTempPath,const std::filesystem::path &pathedSourceFile)
 {
-    VLOG("tempFolderPath == " << tempFolderPath);
-    VLOG("compactTempPath == " << compactTempPath);
-    VLOG("pathedSourceFile == " << pathedSourceFile);
     std::filesystem::path pathedFilename = tempFolderPath;
-    VLOG("pathedFilename == " << pathedFilename);
     if( compactTempPath )
     {
         pathedFilename /= ".temp";
@@ -430,15 +408,14 @@ static std::filesystem::path ChooseTempSourceFilename(const std::filesystem::pat
     {
         pathedFilename += pathedSourceFile;
     }
-    VLOG("pathedFilename == " << pathedFilename);
 
     // If the file does not have an extension, assume cpp file so add one.
     // This allows source files to look like applications.
     if( pathedFilename.has_extension() == false )
     {
-        pathedFilename /= ".cpp";
+        pathedFilename += ".cpp";
     }
-    VLOG("pathedFilename == " << pathedFilename);
+
     return pathedFilename;
 }
 
@@ -566,6 +543,7 @@ int main(int argc,char *argv[])
     }
 
     // Ok, so the source file may not have changed but has any of it's dependencies?
+    // We do this as the exec maybe including a header in the same folder or from else where that maybe changing.
     // This will also check the age of the source file against the age of the executable file.
     // Don't need to do this if we're building anyway.
     if( rebuildNeeded == false )
@@ -713,22 +691,13 @@ int main(int argc,char *argv[])
         }
         VLOG("Running exec: " << pathedExeName);
 
-        // The args sent into shebang for the app, then +1 for the NULL and +1 for the file name as per convention, see https://linux.die.net/man/3/execlp.
-        // I have to allocate new copies, using the .c_str() of the string object does not work. The OS must be doing something funcky.
-        char** TheArgs = new char*[applicationArguments.size() + 2];
-        int c = 0;
-        TheArgs[c++] = CopyString(pathedExeName.string());
+        std::string cmd = pathedExeName.string();
         for( auto arg : applicationArguments )
         {
-            TheArgs[c++] = CopyString(arg);
+            cmd += " ";
+            cmd += arg;
         }
-        TheArgs[c++] = NULL;
-
-        // This replaces the current process so no need to clean up the memory leaks before here. ;)
-        execvp(TheArgs[0], TheArgs);
-
-        std::cerr << "ExecuteShellCommand execl() failure!" << std::endl << "This print is after execl() and should not have been executed if execl were successful!" << std::endl;
-        _exit(1);
+        return std::system(cmd.c_str());
 
     }
     else
@@ -737,10 +706,10 @@ int main(int argc,char *argv[])
         return EXIT_FAILURE;
     }
 
-    if( chdir(CWD.c_str()) != 0 )
-    {
-        std::cerr << "Failed to return to the original run folder " << CWD << std::endl;
-    }
+//    if( chdir(CWD.c_str()) != 0 )
+//    {
+//        std::cerr << "Failed to return to the original run folder " << CWD << std::endl;
+//    }
 
-    return EXIT_FAILURE;
+    return EXIT_SUCCESS;
 }
