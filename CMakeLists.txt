@@ -27,7 +27,7 @@ else(SEABANG_TEMPORARY_FOLDER)
 add_definitions(-DSEABANG_TEMPORARY_FOLDER="/tmp/seabang/")
 endif(SEABANG_TEMPORARY_FOLDER)
 
-add_executable(seabang source/seabang.cpp source/dependencies.cpp source/TinyTools.cpp)
+add_executable(seabang source/seabang.cpp source/dependencies.cpp source/execute_command.cpp)
 target_link_libraries(seabang stdc++ pthread)
 
 install(TARGETS seabang)
