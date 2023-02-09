@@ -7,6 +7,9 @@
 #include <sys/wait.h>
 #include <string.h>
 
+// This is needed because of the prototype of the execvp and no const on the char*.
+// Also, I have seen some odd behaviour if I use the return value from std::string::c_str()
+// Basicly a bridge between c++ and old C. 
 static char* CopyArg(const std::string& pString)
 {
     char *newString = nullptr;
