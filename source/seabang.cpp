@@ -32,7 +32,7 @@
 #include <vector>
 #include <memory>
 #include <filesystem>
-
+#include <algorithm>
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
@@ -60,53 +60,17 @@ inline bool SearchString(const std::vector<std::string>& pVec,const std::string&
    return std::find(pVec.begin(),pVec.end(),pLost) != pVec.end();
 }
 
-/**
- * @brief Does an ascii case insensitive test within the full string or a limited start of the string.
- * 
- * @param pA 
- * @param pB 
- * @param pLength If == 0 then length of second string is used. If first is shorter, will always return false.
- * @return true 
- * @return false 
- */
-bool CompareNoCase(const char* pA,const char* pB,size_t pLength)
+static bool CompareNoCase(const std::string& a, const std::string& b)
 {
-    assert( pA != nullptr || pB != nullptr );// Note only goes pop if both are null.
-// If either or both NULL, then say no. A bit like a divide by zero as null strings are not strings.
-    if( pA == nullptr || pB == nullptr )
+    // Early out, if not same length, not the same.
+    if( a.size() != b.size() )
         return false;
 
-// If same memory then yes they match, doh!
-    if( pA == pB )
-        return true;
-
-    if( pLength == 0 )
-        pLength = strlen(pB);
-
-    while( (*pA != 0 || *pB != 0) && pLength > 0 )
-    {
-        // Get here are one of the strings has hit a null then not the same.
-        // The while loop condition would not allow us to get here if both are null.
-        if( *pA == 0 || *pB == 0 )
-        {// Check my assertion above that should not get here if both are null. Note only goes pop if both are null.
-            assert( pA != NULL || pB != NULL );
-            return false;
-        }
-
-        if( tolower(*pA) != tolower(*pB) )
-            return false;
-
-        pA++;
-        pB++;
-        pLength--;
-    };
-
-    // Get here, they are the same.
-    return true;
-}
-inline bool CompareNoCase(const std::string& pA,const std::string& pB,size_t pLength = 0)
-{
-	return CompareNoCase(pA.c_str(),pB.c_str(),pLength);
+    return std::equal(a.begin(), a.end(),
+                      b.begin(), b.end(),
+                      [](char a, char b) {
+                          return tolower(a) == tolower(b);
+                      });
 }
 
 /**
@@ -128,7 +92,7 @@ static const char* GetSourceFileFromArguments(int argc,char *argv[])
 /**
  * @brief Get the Arguments that are for use in seabang.
  */
-static const std::vector<std::string> GetArgumentsForSeabang(int argc,char *argv[])
+static std::vector<std::string> GetArgumentsForSeabang(int argc,char *argv[])
 {
     // If no arguments then pass back empty vector
     if( argc > 2 )
@@ -149,7 +113,7 @@ static const std::vector<std::string> GetArgumentsForSeabang(int argc,char *argv
  * E.G Will return FRED for --name=FRED, also deals with spaces.
  * Has to assume if = is found after argument that the next arg is the value.
  */
-static const std::string GetArgumentValue(const std::vector<std::string>& args, const std::string theArg)
+static std::string GetArgumentValue(const std::vector<std::string>& args, const std::string theArg)
 {
     for( auto s : args )
     {
@@ -258,21 +222,6 @@ static std::string CorrectTemparyFolderString(std::string pFolder)
     return pFolder;
 }
 
-// std::filesystem::path::compare just checks the string, does not check the file the path points too.
-static bool AreFilesTheSame(const std::filesystem::path pFileA,const std::filesystem::path pFileB)
-{
-    VLOG("Comparing fileA " << pFileA << "with file B " << pFileB);
-    struct stat A;
-    struct stat B;
-    if( stat(pFileA.string().c_str(),&A) != -1 && stat(pFileB.string().c_str(),&B) != -1 )
-    {
-        return A.st_ino == B.st_ino && A.st_dev == B.st_dev;
-    }
-
-    // Ok to return false here as if one or both can't be opened then safe to assume can't be the same file.
-    return false;
-}
-
 /**
  * @brief Allows the user to alter the temp folder used.
  * The order is important and defined in the documentation.
@@ -304,7 +253,7 @@ static std::filesystem::path FindTemporayFolder(const std::vector<std::string>& 
 /**
  * @brief Selects the compiler that we should used.
  */
-const std::string SelectComplier(const std::vector<std::string>& seaBangExtraArguments)
+static const std::string SelectComplier(const std::vector<std::string>& seaBangExtraArguments)
 {
     // The order is important and defined in the documentation.
     // First see if seabang was invoked with the complier overide.
@@ -327,6 +276,29 @@ const std::string SelectComplier(const std::vector<std::string>& seaBangExtraArg
     VLOG("Using default compiler " << SEABANG_CXX_COMPILER);
 
     return SEABANG_CXX_COMPILER;
+}
+
+static std::filesystem::path ChooseTempSourceFilename(const std::filesystem::path &tempFolderPath,bool compactTempPath,const std::filesystem::path &pathedSourceFile)
+{
+    std::filesystem::path pathedFilename = tempFolderPath;
+    if( compactTempPath )
+    {
+        pathedFilename /= ".temp";
+        pathedFilename /= pathedSourceFile.filename();
+    }
+    else
+    {
+        pathedFilename += pathedSourceFile;
+    }
+
+    // If the file does not have an extension, assume cpp file so add one.
+    // This allows source files to look like applications.
+    if( pathedFilename.has_extension() == false )
+    {
+        pathedFilename += ".cpp";
+    }
+
+    return pathedFilename;
 }
 
 /**
@@ -396,45 +368,11 @@ along with seabang.  If not, see <https://www.gnu.org/licenses/>.
     std::cout << helpText << "\n";
 }
 
-static std::filesystem::path ChooseTempSourceFilename(const std::filesystem::path &tempFolderPath,bool compactTempPath,const std::filesystem::path &pathedSourceFile)
-{
-    std::filesystem::path pathedFilename = tempFolderPath;
-    if( compactTempPath )
-    {
-        pathedFilename /= ".temp";
-        pathedFilename /= pathedSourceFile.filename();
-    }
-    else
-    {
-        pathedFilename += pathedSourceFile;
-    }
-
-    // If the file does not have an extension, assume cpp file so add one.
-    // This allows source files to look like applications.
-    if( pathedFilename.has_extension() == false )
-    {
-        pathedFilename += ".cpp";
-    }
-
-    return pathedFilename;
-}
-
 /**
  * @brief Our entrypoint called by the OS
  */
 int main(int argc,char *argv[])
 {
-    assert(CompareNoCase("onetwo","one",3) == true);
-    assert(CompareNoCase("onetwo","ONE",3) == true);
-    assert(CompareNoCase("OneTwo","one",3) == true);
-    assert(CompareNoCase("onetwo","oneX",3) == true);
-    assert(CompareNoCase("OnE","oNe") == true);
-    assert(CompareNoCase("onetwo","one") == true);	// Does it start with 'one'
-    assert(CompareNoCase("onetwo","onetwothree",6) == true);
-    assert(CompareNoCase("onetwo","onetwothreeX",6) == true);
-    assert(CompareNoCase("onetwo","onetwothree") == false); // sorry, but we're searching for more than there is... false...
-    assert(CompareNoCase("onetwo","onetwo") == true);
-
     // See if they are looking for seabang help.
     if( argc == 2 )
     {
@@ -511,7 +449,7 @@ int main(int argc,char *argv[])
     const std::string CompilerToUse = SelectComplier(seaBangExtraArguments);
 
     // Make sure the new temp source file is not pointing to original source file.
-    if( AreFilesTheSame(pathedSourceFile,tempSourcefile) )
+    if( std::filesystem::equivalent(pathedSourceFile,tempSourcefile) )
     {
         VLOG("Error in temporay path. Original source file is same as temporay source file.\n    " << originalSourceFile << "\n    " << tempSourcefile);
         return EXIT_FAILURE;
@@ -697,6 +635,8 @@ int main(int argc,char *argv[])
             cmd += " ";
             cmd += arg;
         }
+        // The docs say "An explicit flush of std::cout is also necessary before a call to std::system, if the spawned process performs any screen I/O."
+        std::cout << std::flush;
         return std::system(cmd.c_str());
 
     }
@@ -706,10 +646,10 @@ int main(int argc,char *argv[])
         return EXIT_FAILURE;
     }
 
-//    if( chdir(CWD.c_str()) != 0 )
-//    {
-//        std::cerr << "Failed to return to the original run folder " << CWD << std::endl;
-//    }
+    if( chdir(CWD.c_str()) != 0 )
+    {
+        std::cerr << "Failed to return to the original run folder " << CWD << std::endl;
+    }
 
     return EXIT_SUCCESS;
 }
