@@ -46,7 +46,7 @@ static void BuildArgArray(char** pTheArgs, const std::vector<std::string>& pArgs
     *pTheArgs = nullptr;
 }
 
-bool ExecuteShellCommand(const std::filesystem::path& pCommand,const std::vector<std::string>& pArgs,const std::map<std::string,std::string>& pEnv, std::string& rOutput)
+bool ExecuteShellCommand(const std::filesystem::path& pCommand,const std::vector<std::string>& pArgs, std::string& rOutput)
 {
     const bool VERBOSE = false;
     if (pCommand.empty() )
@@ -86,11 +86,26 @@ bool ExecuteShellCommand(const std::filesystem::path& pCommand,const std::vector
         close(pipeSTDOUT[0]);
         close(pipeSTDOUT[1]);
 
-        dup2(pipeSTDERR[1], STDERR_FILENO ); /* Duplicate writing end to stdout */
+        dup2(pipeSTDERR[1], STDERR_FILENO ); /* Duplicate writing end to stderr */
         close(pipeSTDERR[0]);
         close(pipeSTDERR[1]);
 
-        ExecuteCommand(pCommand,pArgs,pEnv);
+        // +1 for the NULL and +1 for the file name as per convention, see https://linux.die.net/man/3/execlp.
+        char** TheArgs = new char*[pArgs.size() + 2];
+        TheArgs[0] = CopyArg(pCommand.string());
+        BuildArgArray(TheArgs+1,pArgs);
+
+        // This replaces the current process so no need to clean up the memory leaks before here. ;)
+        execvp(TheArgs[0], TheArgs);
+
+        const char* errorString = strerror(errno);
+
+        std::cerr << "ExecuteCommand execvp() failure!\n" << "    Error: " << errorString << "\n    This print is after execvp() and should not have been executed if execvp were successful!\n";
+
+        // Should never get here!
+        throw std::runtime_error("Command execution failed! Should not have returned! " + pCommand.string() + " Error: " + errorString);
+        // Really make sure the process is gone...
+        _exit(1);
     }
 
     /*
@@ -169,30 +184,4 @@ bool ExecuteShellCommand(const std::filesystem::path& pCommand,const std::vector
     }
 
     return Worked;
-}
-
-void ExecuteCommand(const std::filesystem::path& pCommand,const std::vector<std::string>& pArgs,const std::map<std::string,std::string>& pEnv)
-{
-    // +1 for the NULL and +1 for the file name as per convention, see https://linux.die.net/man/3/execlp.
-    char** TheArgs = new char*[pArgs.size() + 2];
-    TheArgs[0] = CopyArg(pCommand.string());
-    BuildArgArray(TheArgs+1,pArgs);
-
-    // Build the environment variables.
-    for( const auto& var : pEnv )
-    {
-        setenv(var.first.c_str(),var.second.c_str(),1);
-    }
-
-    // This replaces the current process so no need to clean up the memory leaks before here. ;)
-    execvp(TheArgs[0], TheArgs);
-
-    const char* errorString = strerror(errno);
-
-    std::cerr << "ExecuteCommand execvp() failure!\n" << "    Error: " << errorString << "\n    This print is after execvp() and should not have been executed if execvp were successful!\n";
-
-    // Should never get here!
-    throw std::runtime_error("Command execution failed! Should not have returned! " + pCommand.string() + " Error: " + errorString);
-    // Really make sure the process is gone...
-    _exit(1);
 }
