@@ -190,9 +190,9 @@ bool Dependencies::GetIncludesFromFile(const std::filesystem::path& pFilename,co
 								std::string includefile = aLine.substr(start,found-start);
 
 								// Now see if we can find it.
-								for(const std::string& path : pIncludePaths )
+								for(const std::string path : pIncludePaths )
 								{
-									std::string PathedInclude = path + includefile;
+									const std::string PathedInclude = path + includefile;
 									if( std::filesystem::exists(PathedInclude) )
 									{
 										rIncludes.insert(PathedInclude);
